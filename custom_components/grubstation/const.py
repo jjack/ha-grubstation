@@ -7,6 +7,10 @@ LOGGER: Logger = getLogger(__package__)
 DOMAIN = "grubstation"
 ATTRIBUTION = "Data provided by http://jsonplaceholder.typicode.com/"
 
+ATTR_OS = "os"
+ATTR_VERSION = "version"
+ATTR_SERVICE_MANAGER = "service_manager"
+
 CONF_BOOT_OPTIONS = "boot_options"
 CONF_DAEMONLESS = "daemonless"
 CONF_HA_DAEMON_URL = "ha_daemon_url"
