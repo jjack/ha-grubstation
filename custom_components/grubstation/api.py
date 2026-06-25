@@ -44,6 +44,11 @@ class GrubStationApiClient:
         port: int,
         mac: str | None,
         daemonless: bool,
+        webhook_id: str | None,
+        api_key: str | None,
+        ha_daemon_url: str | None,
+        ha_grub_url: str | None,
+        apply_config: bool,
         session: aiohttp.ClientSession,
     ) -> None:
         """Sample API Client."""
@@ -51,7 +56,28 @@ class GrubStationApiClient:
         self._port = port
         self._mac = mac
         self._daemonless = daemonless
+        self._webhook_id = webhook_id
+        self._api_key = api_key
+        self._ha_daemon_url = ha_daemon_url
+        self._ha_grub_url = ha_grub_url
+        self._apply_config = apply_config
         self._session = session
+
+    async def async_pair(self) -> Any:
+        """Pair the integration with the GrubStation device."""
+        pairing_payload = {
+            "paired": True,
+            "webhook_id": self._webhook_id,
+            "api_key": self._api_key,
+            "ha_daemon_url": self._ha_daemon_url,
+            "ha_grub_url": self._ha_grub_url,
+            "apply_config": self._apply_config,
+        }
+        return await self._api_wrapper(
+            method="post",
+            url=f"http://{self._host}:{self._port}/pair",
+            data=pairing_payload,
+        )
 
     async def async_get_data(self) -> Any:
         """Get data from the API."""

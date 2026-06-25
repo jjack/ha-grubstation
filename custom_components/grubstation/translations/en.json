@@ -9,6 +9,10 @@
                     "mac": "MAC address",
                     "daemonless": "Daemonless mode"
                 }
+            },
+            "pairing": {
+                "title": "Pairing",
+                "description": "Click Submit to pair and automatically generate a webhook ID and API key."
             }
         },
         "error": {
