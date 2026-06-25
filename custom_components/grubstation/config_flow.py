@@ -11,13 +11,13 @@ from yarl import URL
 from homeassistant import config_entries
 from homeassistant.components import webhook
 from homeassistant.components.network.util import async_get_source_ip
-from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID
+from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PIN, CONF_PORT, CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import network, selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
-from .api import GrubStationApiClient
+from .api import GrubStationApiClient, GrubStationApiInvalidPinError, GrubStationApiPinRequiredError
 from .const import (
     CONF_APPLY_CONFIG,
     CONF_BOOT_OPTIONS,
@@ -184,18 +184,81 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     },
                     session=async_create_clientsession(self.hass),
                 )
-                await client.async_pair()
+                response_data = await client.async_pair()
+            except GrubStationApiPinRequiredError:
+                webhook.async_unregister(self.hass, self._webhook_id)
+                return await self.async_step_pin()
             except Exception as exception:  # noqa: BLE001
                 LOGGER.exception(exception)
                 _errors["base"] = "connection"
                 webhook.async_unregister(self.hass, self._webhook_id)
             else:
                 webhook.async_unregister(self.hass, self._webhook_id)
+                self._mac = response_data.get("mac", self._mac)
+                self._boot_options = response_data.get("boot_options")
                 return self._async_create_grubstation_entry()
 
         return self.async_show_form(
             step_id="pairing",
             data_schema=vol.Schema({}),
+            errors=_errors,
+        )
+
+    async def async_step_pin(
+        self,
+        user_input: dict | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Handle PIN authentication step."""
+        _errors = {}
+        if user_input is not None:
+            pin = user_input[CONF_PIN]
+            try:
+                webhook.async_register(
+                    self.hass,
+                    DOMAIN,
+                    "GrubStation Webhook",
+                    self._webhook_id,
+                    async_handle_webhook,
+                )
+                client = GrubStationApiClient(
+                    config={
+                        CONF_HOST: self._host,
+                        CONF_PORT: self._port,
+                        CONF_MAC: self._mac,
+                        CONF_DAEMONLESS: self._is_daemonless,
+                        CONF_WEBHOOK_ID: self._webhook_id,
+                        CONF_API_KEY: self._api_key,
+                        CONF_HA_DAEMON_URL: self._ha_daemon_url,
+                        CONF_HA_GRUB_URL: self._ha_grub_url,
+                        CONF_APPLY_CONFIG: self._apply_config,
+                    },
+                    session=async_create_clientsession(self.hass),
+                )
+                response_data = await client.async_pair(pin=pin)
+            except GrubStationApiInvalidPinError:
+                _errors["base"] = "invalid_pin"
+                webhook.async_unregister(self.hass, self._webhook_id)
+            except Exception as exception:  # noqa: BLE001
+                LOGGER.exception(exception)
+                _errors["base"] = "connection"
+                webhook.async_unregister(self.hass, self._webhook_id)
+            else:
+                webhook.async_unregister(self.hass, self._webhook_id)
+                self._mac = response_data.get("mac", self._mac)
+                self._boot_options = response_data.get("boot_options")
+                return self._async_create_grubstation_entry()
+
+        return self.async_show_form(
+            step_id="pin",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PIN): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        )
+                    )
+                }
+            ),
             errors=_errors,
         )
 

@@ -13,13 +13,21 @@
             "pairing": {
                 "title": "Pairing",
                 "description": "Click Submit to pair and automatically generate a webhook ID and API key."
+            },
+            "pin": {
+                "title": "PIN Verification Required",
+                "description": "Please enter the 6-digit PIN code displayed in your GrubStation Agent terminal/logs to complete authorization.",
+                "data": {
+                    "pin": "PIN Code"
+                }
             }
         },
         "error": {
             "auth": "Authentication failed.",
             "connection": "Unable to connect to the server.",
             "unknown": "Unknown error occurred.",
-            "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled."
+            "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled.",
+            "invalid_pin": "The PIN code entered is invalid."
         },
         "abort": {
             "already_configured": "This entry is already configured."

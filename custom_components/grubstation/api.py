@@ -29,9 +29,27 @@ class GrubStationApiClientAuthenticationError(
     """Exception to indicate an authentication error."""
 
 
-def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
+class GrubStationApiPinRequiredError(GrubStationApiClientError):
+    """Exception to indicate PIN code is required."""
+
+
+class GrubStationApiInvalidPinError(GrubStationApiClientAuthenticationError):
+    """Exception to indicate the entered PIN code is invalid."""
+
+
+async def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
     """Verify that the response is valid."""
     if response.status in (401, 403):
+        try:
+            body = await response.json()
+            if isinstance(body, dict):
+                error = body.get("error")
+                if error == "pin_required":
+                    raise GrubStationApiPinRequiredError("PIN is required")
+                if error == "invalid_pin":
+                    raise GrubStationApiInvalidPinError("Invalid PIN entered")
+        except aiohttp.ClientError, ValueError:
+            pass
         msg = "Invalid credentials"
         raise GrubStationApiClientAuthenticationError(
             msg,
@@ -59,7 +77,7 @@ class GrubStationApiClient:
         self._apply_config = config.get(CONF_APPLY_CONFIG, True)
         self._session = session
 
-    async def async_pair(self) -> Any:
+    async def async_pair(self, pin: str | None = None) -> Any:
         """Pair the integration with the GrubStation device."""
         pairing_payload = {
             "paired": True,
@@ -69,6 +87,8 @@ class GrubStationApiClient:
             "ha_grub_url": self._ha_grub_url,
             "apply_config": self._apply_config,
         }
+        if pin is not None:
+            pairing_payload["pin"] = pin
         return await self._api_wrapper(
             method="post",
             url=f"http://{self._host}:{self._port}/pair",
@@ -129,7 +149,7 @@ class GrubStationApiClient:
                     headers=headers,
                     json=data,
                 )
-                _verify_response_or_raise(response)
+                await _verify_response_or_raise(response)
                 return await response.json()
 
         except TimeoutError as exception:
@@ -142,6 +162,8 @@ class GrubStationApiClient:
             raise GrubStationApiClientCommunicationError(
                 msg,
             ) from exception
+        except GrubStationApiClientError:
+            raise
         except Exception as exception:  # pylint: disable=broad-except
             msg = f"Something really wrong happened! - {exception}"
             raise GrubStationApiClientError(
