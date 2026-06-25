@@ -1,4 +1,4 @@
-"""Custom types for integration_blueprint."""
+"""Custom types for grubstation."""
 
 from __future__ import annotations
 
@@ -9,17 +9,17 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.loader import Integration
 
-    from .api import IntegrationBlueprintApiClient
+    from .api import GrubStationApiClient
     from .coordinator import BlueprintDataUpdateCoordinator
 
 
-type IntegrationBlueprintConfigEntry = ConfigEntry[IntegrationBlueprintData]
+type GrubStationConfigEntry = ConfigEntry[GrubStationData]
 
 
 @dataclass
-class IntegrationBlueprintData:
+class GrubStationData:
     """Data for the Blueprint integration."""
 
-    client: IntegrationBlueprintApiClient
+    client: GrubStationApiClient
     coordinator: BlueprintDataUpdateCoordinator
     integration: Integration
