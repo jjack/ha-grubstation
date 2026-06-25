@@ -3,20 +3,13 @@
 from __future__ import annotations
 
 import voluptuous as vol
-from homeassistant import config_entries
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.helpers import selector
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from homeassistant.loader import async_get_loaded_integration
-from slugify import slugify
 
-from .api import (
-    GrubStationApiClient,
-    GrubStationApiClientAuthenticationError,
-    GrubStationApiClientCommunicationError,
-    GrubStationApiClientError,
-)
-from .const import DOMAIN, LOGGER
+from homeassistant import config_entries
+from homeassistant.const import CONF_HOST, CONF_MAC, CONF_PORT
+from homeassistant.helpers import selector
+from homeassistant.loader import async_get_loaded_integration
+
+from .const import CONF_BOOT_OPTIONS, CONF_DAEMONLESS, DEFAULT_AGENT_PORT, DEFAULT_DAEMONLESS, DOMAIN
 
 
 class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -24,44 +17,43 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+        self._host: str | None = None
+        self._hostname: str | None = None
+        self._port: int = DEFAULT_AGENT_PORT
+        self._mac: str | None = None
+        self._is_daemonless: bool = False
+        self._boot_options: list[str] | None = None
+
     async def async_step_user(
         self,
         user_input: dict | None = None,
     ) -> config_entries.ConfigFlowResult:
         """Handle a flow initialized by the user."""
-        _errors = {}
+        _errors: dict[str, str] = {}
         if user_input is not None:
-            try:
-                await self._test_credentials(
-                    username=user_input[CONF_USERNAME],
-                    password=user_input[CONF_PASSWORD],
-                )
-            except GrubStationApiClientAuthenticationError as exception:
-                LOGGER.warning(exception)
-                _errors["base"] = "auth"
-            except GrubStationApiClientCommunicationError as exception:
-                LOGGER.error(exception)
-                _errors["base"] = "connection"
-            except GrubStationApiClientError as exception:
-                LOGGER.exception(exception)
-                _errors["base"] = "unknown"
+            self._host = user_input[CONF_HOST]
+            self._port = user_input[CONF_PORT]
+            self._mac = user_input.get(CONF_MAC)
+            self._is_daemonless = user_input.get(CONF_DAEMONLESS, False)
+
+            if self._is_daemonless and not self._mac:
+                _errors[CONF_MAC] = "mac_required_for_daemonless"
             else:
-                await self.async_set_unique_id(
-                    ## Do NOT use this in production code
-                    ## The unique_id should never be something that can change
-                    ## https://developers.home-assistant.io/docs/config_entries_config_flow_handler#unique-ids
-                    unique_id=slugify(user_input[CONF_USERNAME])
-                )
-                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=user_input[CONF_USERNAME],
-                    data=user_input,
+                    title=self._host,
+                    data={
+                        CONF_HOST: self._host,
+                        CONF_PORT: self._port,
+                        CONF_MAC: self._mac,
+                        CONF_DAEMONLESS: self._is_daemonless,
+                        CONF_BOOT_OPTIONS: self._boot_options,
+                    },
                 )
 
         integration = async_get_loaded_integration(self.hass, DOMAIN)
-        assert integration.documentation is not None, (  # noqa: S101
-            "Integration documentation URL is not set in manifest.json"
-        )
+        assert integration.documentation is not None, "Integration documentation URL is not set in manifest.json"
 
         return self.async_show_form(
             step_id="user",
@@ -71,28 +63,36 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_USERNAME,
-                        default=(user_input or {}).get(CONF_USERNAME, vol.UNDEFINED),
+                        CONF_HOST,
+                        default=(user_input or {}).get(CONF_HOST, vol.UNDEFINED),
                     ): selector.TextSelector(
                         selector.TextSelectorConfig(
                             type=selector.TextSelectorType.TEXT,
                         ),
                     ),
-                    vol.Required(CONF_PASSWORD): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.PASSWORD,
+                    vol.Required(
+                        CONF_PORT,
+                        default=(user_input or {}).get(CONF_PORT, DEFAULT_AGENT_PORT),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1025,
+                            max=65535,
+                            mode=selector.NumberSelectorMode.BOX,
                         ),
                     ),
+                    vol.Optional(
+                        CONF_MAC,
+                        default=(user_input or {}).get(CONF_MAC, vol.UNDEFINED),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_DAEMONLESS,
+                        default=(user_input or {}).get(CONF_DAEMONLESS, DEFAULT_DAEMONLESS),
+                    ): selector.BooleanSelector(),
                 },
             ),
             errors=_errors,
         )
-
-    async def _test_credentials(self, username: str, password: str) -> None:
-        """Validate credentials."""
-        client = GrubStationApiClient(
-            username=username,
-            password=password,
-            session=async_create_clientsession(self.hass),
-        )
-        await client.async_get_data()

@@ -4,15 +4,18 @@
             "user": {
                 "description": "If you need help with the configuration have a look here: {documentation_url}",
                 "data": {
-                    "username": "Username",
-                    "password": "Password"
+                    "host": "Host address",
+                    "port": "Port",
+                    "mac": "MAC address",
+                    "daemonless": "Daemonless mode"
                 }
             }
         },
         "error": {
-            "auth": "Username/Password is wrong.",
+            "auth": "Authentication failed.",
             "connection": "Unable to connect to the server.",
-            "unknown": "Unknown error occurred."
+            "unknown": "Unknown error occurred.",
+            "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled."
         },
         "abort": {
             "already_configured": "This entry is already configured."

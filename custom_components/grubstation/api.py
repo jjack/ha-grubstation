@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import socket
 from typing import Any
 
 import aiohttp
-import async_timeout
 
 
 class GrubStationApiClientError(Exception):
@@ -40,13 +40,17 @@ class GrubStationApiClient:
 
     def __init__(
         self,
-        username: str,
-        password: str,
+        host: str,
+        port: int,
+        mac: str | None,
+        daemonless: bool,
         session: aiohttp.ClientSession,
     ) -> None:
         """Sample API Client."""
-        self._username = username
-        self._password = password
+        self._host = host
+        self._port = port
+        self._mac = mac
+        self._daemonless = daemonless
         self._session = session
 
     async def async_get_data(self) -> Any:
@@ -74,7 +78,7 @@ class GrubStationApiClient:
     ) -> Any:
         """Get information from the API."""
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 response = await self._session.request(
                     method=method,
                     url=url,
