@@ -10,7 +10,10 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from homeassistant.const import Platform
+from aiohttp import web
+
+from homeassistant.components import webhook
+from homeassistant.const import CONF_WEBHOOK_ID, Platform
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
@@ -29,6 +32,15 @@ PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
 ]
+
+
+async def async_handle_webhook(
+    hass: HomeAssistant,
+    webhook_id: str,
+    request: web.Request,
+) -> web.Response | None:
+    """Handle webhook callback."""
+    return web.json_response({"status": "ok"})
 
 
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
@@ -55,6 +67,15 @@ async def async_setup_entry(
     # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
     await coordinator.async_config_entry_first_refresh()
 
+    # Register webhook
+    webhook.async_register(
+        hass,
+        DOMAIN,
+        "GrubStation Webhook",
+        entry.data[CONF_WEBHOOK_ID],
+        async_handle_webhook,
+    )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
@@ -66,6 +87,8 @@ async def async_unload_entry(
     entry: GrubStationConfigEntry,
 ) -> bool:
     """Handle removal of an entry."""
+    if webhook_id := entry.data.get(CONF_WEBHOOK_ID):
+        webhook.async_unregister(hass, webhook_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 

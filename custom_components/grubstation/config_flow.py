@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import secrets
 
+from aiohttp import web
 import voluptuous as vol
 from yarl import URL
 
 from homeassistant import config_entries
 from homeassistant.components import webhook
 from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import network, selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.loader import async_get_loaded_integration
@@ -30,6 +31,15 @@ from .const import (
     LOGGER,
     SERVER_PORT,
 )
+
+
+async def async_handle_webhook(
+    hass: HomeAssistant,
+    webhook_id: str,
+    request: web.Request,
+) -> web.Response | None:
+    """Handle webhook callback."""
+    return web.json_response({"status": "ok"})
 
 
 class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -153,6 +163,13 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
 
             try:
+                webhook.async_register(
+                    self.hass,
+                    DOMAIN,
+                    "GrubStation Webhook",
+                    self._webhook_id,
+                    async_handle_webhook,
+                )
                 client = GrubStationApiClient(
                     config={
                         CONF_HOST: self._host,
@@ -171,7 +188,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception as exception:  # noqa: BLE001
                 LOGGER.exception(exception)
                 _errors["base"] = "connection"
+                webhook.async_unregister(self.hass, self._webhook_id)
             else:
+                webhook.async_unregister(self.hass, self._webhook_id)
                 return self._async_create_grubstation_entry()
 
         return self.async_show_form(
