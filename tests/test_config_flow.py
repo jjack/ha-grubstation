@@ -6,6 +6,7 @@ from custom_components.grubstation.api import GrubStationApiInvalidPinError, Gru
 from custom_components.grubstation.const import DOMAIN
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 
 
 async def test_config_flow(hass: HomeAssistant) -> None:
@@ -162,3 +163,66 @@ async def test_config_flow_pin_connection_error(hass: HomeAssistant) -> None:
     assert result4["type"] == "form"
     assert result4["step_id"] == "pin"
     assert result4["errors"] == {"base": "connection"}
+
+
+async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
+    # Setup HTTP and webhook components first so hass.http is not None
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+    # Fill host info, port, mac, and daemonless=True
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "host": "192.168.1.10",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "daemonless": True,
+        },
+    )
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "daemonless_onboarding"
+
+    # Submit without running the CLI command/callback first -> should show error
+    result3 = await hass.config_entries.flow.async_configure(
+        result2["flow_id"],
+        {},
+    )
+    assert result3["type"] == "form"
+    assert result3["step_id"] == "daemonless_onboarding"
+    assert result3["errors"] == {"base": "waiting_for_device_callback"}
+
+    # Simulate the remote machine sending the pairing webhook callback
+    # We find the flow handler instance to get the generated webhook ID
+    flow_id = result["flow_id"]
+    flow = hass.config_entries.flow._progress[flow_id]
+    webhook_id = flow._webhook_id
+
+    client = await hass_client()
+    resp = await client.post(
+        f"/api/webhook/{webhook_id}",
+        json={
+            "action": "update_boot_options",
+            "boot_options": ["Ubuntu", "Windows Boot Manager"],
+        },
+    )
+    assert resp.status == 200
+    data = await resp.json()
+    assert data == {"status": "ok"}
+
+    # Now click Submit again -> should succeed and create the entry
+    result4 = await hass.config_entries.flow.async_configure(
+        result2["flow_id"],
+        {},
+    )
+    assert result4["type"] == "create_entry"
+    assert result4["title"] == "GrubStation (192.168.1.10) [Manual]"
+    assert result4["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
+    assert result4["data"]["boot_options"] == [
+        "Ubuntu",
+        "Windows Boot Manager",
+    ]

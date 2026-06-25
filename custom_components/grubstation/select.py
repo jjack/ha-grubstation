@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 
+from .const import CONF_BOOT_OPTIONS
 from .entity import GrubStationEntity
 
 if TYPE_CHECKING:
@@ -17,9 +18,9 @@ if TYPE_CHECKING:
 
 ENTITY_DESCRIPTIONS = (
     SelectEntityDescription(
-        key="grubstation",
-        name="Integration Select",
-        icon="mdi:format-quote-close",
+        key="next_boot",
+        name="GrubStation Next Boot Select",
+        icon="mdi:restart",
     ),
 )
 
@@ -50,18 +51,23 @@ class GrubStationSelect(GrubStationEntity, SelectEntity):
         """Initialize the select class."""
         super().__init__(coordinator)
         self.entity_description = entity_description
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{entity_description.key}"
 
     @property
-    def is_on(self) -> bool:
-        """Return true if the select is on."""
-        return self.coordinator.data.get("title", "") == "foo"
+    def options(self) -> list[str]:
+        """Return a list of available options."""
+        boot_options = self.coordinator.config_entry.data.get(CONF_BOOT_OPTIONS) or []
+        return ["default"] + [opt for opt in boot_options if opt != "default"]
 
-    async def async_turn_on(self, **_: Any) -> None:
-        """Turn on the select."""
-        await self.coordinator.config_entry.runtime_data.client.async_set_title("bar")
-        await self.coordinator.async_request_refresh()
+    @property
+    def current_option(self) -> str | None:
+        """Return the selected entity option."""
+        if hasattr(self.coordinator.config_entry, "runtime_data"):
+            return self.coordinator.config_entry.runtime_data.next_boot
+        return "default"
 
-    async def async_turn_off(self, **_: Any) -> None:
-        """Turn off the select."""
-        await self.coordinator.config_entry.runtime_data.client.async_set_title("foo")
-        await self.coordinator.async_request_refresh()
+    async def async_select_option(self, option: str) -> None:
+        """Change the selected option."""
+        if hasattr(self.coordinator.config_entry, "runtime_data"):
+            self.coordinator.config_entry.runtime_data.next_boot = option
+            self.async_write_ha_state()

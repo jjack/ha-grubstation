@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 
 from aiohttp import web
@@ -57,6 +58,8 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._boot_options: list[str] | None = None
         self._webhook_id: str | None = None
         self._api_key: str | None = None
+        self._temporary_webhook_registered: bool = False
+        self._daemonless_paired: bool = False
 
     async def async_step_user(
         self,
@@ -73,6 +76,8 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if self._is_daemonless and not self._mac:
                 _errors[CONF_MAC] = "mac_required_for_daemonless"
             else:
+                if self._is_daemonless:
+                    return await self.async_step_daemonless_onboarding()
                 return await self.async_step_pairing()
 
         integration = async_get_loaded_integration(self.hass, DOMAIN)
@@ -132,29 +137,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if not self._api_key:
                 self._api_key = secrets.token_hex(32)
 
-        # Generate default URLs
-        try:
-            ha_daemon_url = network.get_url(self.hass, require_ssl=True, allow_internal=True, allow_external=False)
-            ha_grub_url = network.get_url(self.hass, require_ssl=False, allow_internal=True, allow_external=False)
-        except network.NoURLAvailableError:
-            ha_daemon_url = "http://homeassistant.local:8123"
-            ha_grub_url = "http://homeassistant.local:8123"
-
-        # GRUB strictly needs an HTTP IP address and port.
-        try:
-            ha_ip = await async_get_source_ip(self.hass, self._host)
-            url_obj = URL(ha_grub_url).with_scheme("http").with_host(ha_ip)
-
-            # Ensure we have a port. Default to 8123 if it was missing or 443
-            if url_obj.port in (None, 80, 443):
-                url_obj = url_obj.with_port(SERVER_PORT)
-
-            ha_grub_url = str(url_obj)
-        except Exception:  # noqa: BLE001
-            LOGGER.debug("Could not determine local IP for ha_grub_url")
-            # Fallback to a safe default if everything fails
-            if ha_grub_url.startswith("https"):
-                ha_grub_url = ha_grub_url.replace("https", "http", 1)
+        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
 
         if user_input is not None:
             self._ha_daemon_url = user_input.get(CONF_HA_DAEMON_URL, ha_daemon_url)
@@ -262,6 +245,77 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             errors=_errors,
         )
 
+    async def async_step_daemonless_onboarding(
+        self,
+        user_input: dict | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Handle daemonless onboarding step."""
+        _errors = {}
+
+        if not self._webhook_id:
+            self._webhook_id = webhook.async_generate_id()
+        if not self._api_key:
+            self._api_key = secrets.token_hex(32)
+
+        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+
+        self._ha_daemon_url = ha_daemon_url
+        self._ha_grub_url = ha_grub_url
+        self._apply_config = True
+        self._turn_off_action = None
+
+        payload_dict = {
+            "ha_daemon_url": ha_daemon_url,
+            "webhook_id": self._webhook_id,
+            "api_key": self._api_key,
+            "ha_grub_url": f"{ha_grub_url}/api/grubstation/boot",
+            "apply_config": True,
+        }
+        payload_str = json.dumps(payload_dict)
+        pairing_command = f"sudo grubstation pair --payload '{payload_str}'"
+
+        if not self._temporary_webhook_registered:
+            webhook.async_register(
+                self.hass,
+                DOMAIN,
+                "GrubStation Temporary Webhook",
+                self._webhook_id,
+                self._async_handle_daemonless_webhook,
+            )
+            self._temporary_webhook_registered = True
+
+        if user_input is not None:
+            if self._daemonless_paired:
+                webhook.async_unregister(self.hass, self._webhook_id)
+                self._temporary_webhook_registered = False
+                return self._async_create_grubstation_entry()
+            _errors["base"] = "waiting_for_device_callback"
+
+        return self.async_show_form(
+            step_id="daemonless_onboarding",
+            description_placeholders={
+                "pairing_command": pairing_command,
+            },
+            data_schema=vol.Schema({}),
+            errors=_errors,
+        )
+
+    async def _async_handle_daemonless_webhook(
+        self,
+        hass: HomeAssistant,
+        webhook_id: str,
+        request: web.Request,
+    ) -> web.Response | None:
+        """Handle daemonless callback."""
+        try:
+            payload = await request.json()
+            if payload.get("action") == "update_boot_options":
+                self._boot_options = payload.get("boot_options")
+                self._daemonless_paired = True
+        except Exception:  # noqa: BLE001
+            pass
+        return web.json_response({"status": "ok"})
+
     @callback
     def _async_create_grubstation_entry(self) -> config_entries.ConfigFlowResult:
         """Create the config entry."""
@@ -287,3 +341,29 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         else:
             title = f"{self._hostname} ({self._host})" if self._hostname else f"GrubStation ({self._host})"
         return self.async_create_entry(title=title, data=data)
+
+    async def _async_generate_urls(self) -> tuple[str, str]:
+        """Generate default URLs for HA daemon and GRUB."""
+        try:
+            ha_daemon_url = network.get_url(self.hass, require_ssl=True, allow_internal=True, allow_external=False)
+            ha_grub_url = network.get_url(self.hass, require_ssl=False, allow_internal=True, allow_external=False)
+        except network.NoURLAvailableError:
+            ha_daemon_url = "http://homeassistant.local:8123"
+            ha_grub_url = "http://homeassistant.local:8123"
+
+        # GRUB strictly needs an HTTP IP address and port.
+        try:
+            ha_ip = await async_get_source_ip(self.hass, self._host)
+            url_obj = URL(ha_grub_url).with_scheme("http").with_host(ha_ip)
+
+            # Ensure we have a port. Default to 8123 if it was missing or 443
+            if url_obj.port in (None, 80, 443):
+                url_obj = url_obj.with_port(SERVER_PORT)
+
+            ha_grub_url = str(url_obj)
+        except Exception:  # noqa: BLE001
+            LOGGER.debug("Could not determine local IP for ha_grub_url")
+            if ha_grub_url.startswith("https"):
+                ha_grub_url = ha_grub_url.replace("https", "http", 1)
+
+        return ha_daemon_url, ha_grub_url

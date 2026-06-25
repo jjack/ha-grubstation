@@ -23,3 +23,4 @@ class GrubStationData:
     client: GrubStationApiClient
     coordinator: BlueprintDataUpdateCoordinator
     integration: Integration
+    next_boot: str = "default"

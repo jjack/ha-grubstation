@@ -20,6 +20,10 @@
                 "data": {
                     "pin": "PIN Code"
                 }
+            },
+            "daemonless_onboarding": {
+                "title": "Daemonless Onboarding",
+                "description": "Run the following command on your remote machine to pair it with Home Assistant. Once the command completes successfully, click Submit.\n\nCommand:\n```bash\n{pairing_command}\n```"
             }
         },
         "error": {
@@ -27,7 +31,8 @@
             "connection": "Unable to connect to the server.",
             "unknown": "Unknown error occurred.",
             "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled.",
-            "invalid_pin": "The PIN code entered is invalid."
+            "invalid_pin": "The PIN code entered is invalid.",
+            "waiting_for_device_callback": "Waiting for pairing callback from the remote device. Please make sure the command has run successfully."
         },
         "abort": {
             "already_configured": "This entry is already configured."
