@@ -86,6 +86,17 @@ class GrubStationApiClient:
             headers=headers,
         )
 
+    async def async_get_status(self) -> dict[str, Any]:
+        """Check status of the GrubStation device."""
+        headers = {}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        return await self._api_wrapper(
+            method="get",
+            url=f"http://{self._host}:{self._port}/status",
+            headers=headers,
+        )
+
     async def async_get_data(self) -> Any:
         """Get data from the API."""
         return await self._api_wrapper(
