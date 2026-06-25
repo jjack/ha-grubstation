@@ -8,6 +8,10 @@ from typing import Any
 
 import aiohttp
 
+from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID
+
+from .const import CONF_APPLY_CONFIG, CONF_DAEMONLESS, CONF_HA_DAEMON_URL, CONF_HA_GRUB_URL
+
 
 class GrubStationApiClientError(Exception):
     """Exception to indicate a general API error."""
@@ -40,27 +44,19 @@ class GrubStationApiClient:
 
     def __init__(
         self,
-        host: str,
-        port: int,
-        mac: str | None,
-        daemonless: bool,
-        webhook_id: str | None,
-        api_key: str | None,
-        ha_daemon_url: str | None,
-        ha_grub_url: str | None,
-        apply_config: bool,
+        config: dict[str, Any],
         session: aiohttp.ClientSession,
     ) -> None:
         """Sample API Client."""
-        self._host = host
-        self._port = port
-        self._mac = mac
-        self._daemonless = daemonless
-        self._webhook_id = webhook_id
-        self._api_key = api_key
-        self._ha_daemon_url = ha_daemon_url
-        self._ha_grub_url = ha_grub_url
-        self._apply_config = apply_config
+        self._host = config[CONF_HOST]
+        self._port = config[CONF_PORT]
+        self._mac = config.get(CONF_MAC)
+        self._daemonless = config.get(CONF_DAEMONLESS, False)
+        self._webhook_id = config.get(CONF_WEBHOOK_ID)
+        self._api_key = config.get(CONF_API_KEY)
+        self._ha_daemon_url = config.get(CONF_HA_DAEMON_URL)
+        self._ha_grub_url = config.get(CONF_HA_GRUB_URL)
+        self._apply_config = config.get(CONF_APPLY_CONFIG, True)
         self._session = session
 
     async def async_pair(self) -> Any:
@@ -77,6 +73,17 @@ class GrubStationApiClient:
             method="post",
             url=f"http://{self._host}:{self._port}/pair",
             data=pairing_payload,
+        )
+
+    async def async_unpair(self) -> Any:
+        """Unpair the integration from the GrubStation device."""
+        headers = {}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        return await self._api_wrapper(
+            method="post",
+            url=f"http://{self._host}:{self._port}/unpair",
+            headers=headers,
         )
 
     async def async_get_data(self) -> Any:

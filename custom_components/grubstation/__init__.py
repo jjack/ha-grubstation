@@ -10,12 +10,12 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID, Platform
+from homeassistant.const import Platform
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import GrubStationApiClient
-from .const import CONF_APPLY_CONFIG, CONF_DAEMONLESS, CONF_HA_DAEMON_URL, CONF_HA_GRUB_URL, DOMAIN, LOGGER
+from .const import DOMAIN, LOGGER
 from .coordinator import BlueprintDataUpdateCoordinator
 from .data import GrubStationData
 
@@ -45,15 +45,7 @@ async def async_setup_entry(
     )
     entry.runtime_data = GrubStationData(
         client=GrubStationApiClient(
-            host=entry.data[CONF_HOST],
-            port=entry.data[CONF_PORT],
-            mac=entry.data.get(CONF_MAC),
-            daemonless=entry.data[CONF_DAEMONLESS],
-            webhook_id=entry.data.get(CONF_WEBHOOK_ID),
-            api_key=entry.data.get(CONF_API_KEY),
-            ha_daemon_url=entry.data.get(CONF_HA_DAEMON_URL),
-            ha_grub_url=entry.data.get(CONF_HA_GRUB_URL),
-            apply_config=entry.data.get(CONF_APPLY_CONFIG, True),
+            config=entry.data,
             session=async_get_clientsession(hass),
         ),
         integration=async_get_loaded_integration(hass, entry.domain),
@@ -83,3 +75,18 @@ async def async_reload_entry(
 ) -> None:
     """Reload config entry."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_remove_entry(
+    hass: HomeAssistant,
+    entry: GrubStationConfigEntry,
+) -> None:
+    """Handle removal of an entry."""
+    client = GrubStationApiClient(
+        config=entry.data,
+        session=async_get_clientsession(hass),
+    )
+    try:
+        await client.async_unpair()
+    except Exception as exception:  # noqa: BLE001
+        LOGGER.warning("Failed to unpair from GrubStation: %s", exception)

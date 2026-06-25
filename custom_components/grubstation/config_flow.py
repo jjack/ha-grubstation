@@ -154,15 +154,17 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 client = GrubStationApiClient(
-                    host=self._host,
-                    port=self._port,
-                    mac=self._mac,
-                    daemonless=self._is_daemonless,
-                    webhook_id=self._webhook_id,
-                    api_key=self._api_key,
-                    ha_daemon_url=self._ha_daemon_url,
-                    ha_grub_url=self._ha_grub_url,
-                    apply_config=self._apply_config,
+                    config={
+                        CONF_HOST: self._host,
+                        CONF_PORT: self._port,
+                        CONF_MAC: self._mac,
+                        CONF_DAEMONLESS: self._is_daemonless,
+                        CONF_WEBHOOK_ID: self._webhook_id,
+                        CONF_API_KEY: self._api_key,
+                        CONF_HA_DAEMON_URL: self._ha_daemon_url,
+                        CONF_HA_GRUB_URL: self._ha_grub_url,
+                        CONF_APPLY_CONFIG: self._apply_config,
+                    },
                     session=async_create_clientsession(self.hass),
                 )
                 await client.async_pair()
