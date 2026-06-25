@@ -2,10 +2,13 @@
 
 from unittest.mock import patch
 
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.grubstation.api import GrubStationApiInvalidPinError, GrubStationApiPinRequiredError
 from custom_components.grubstation.const import DOMAIN
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.setup import async_setup_component
 
 
@@ -226,3 +229,84 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
         "Ubuntu",
         "Windows Boot Manager",
     ]
+
+
+async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
+    """Test the config flow via zeroconf."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    discovery_info = ZeroconfServiceInfo(
+        ip_address="127.0.0.1",
+        ip_addresses=["127.0.0.1"],
+        hostname="grubstation.local.",
+        name="GrubStation",
+        port=8081,
+        type="_grubstation._tcp.local.",
+        properties={
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "paired": "false",
+            "address": "127.0.0.1",
+        },
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=discovery_info,
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "pairing"
+
+    # Submit pairing step, which generates credentials and calls pairing API
+    with patch(
+        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
+        return_value={"paired": True},
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {},
+        )
+        assert result2["type"] == "create_entry"
+        assert result2["title"] == "grubstation.local (127.0.0.1)"
+        assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
+        assert result2["data"]["host"] == "127.0.0.1"
+
+
+async def test_config_flow_zeroconf_already_configured(hass: HomeAssistant) -> None:
+    """Test that zeroconf flow aborts if already configured."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "host": "127.0.0.1",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    discovery_info = ZeroconfServiceInfo(
+        ip_address="127.0.0.1",
+        ip_addresses=["127.0.0.1"],
+        hostname="grubstation.local.",
+        name="GrubStation",
+        port=8081,
+        type="_grubstation._tcp.local.",
+        properties={
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "paired": "false",
+            "address": "127.0.0.1",
+        },
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=discovery_info,
+    )
+    assert result["type"] == "abort"
+    assert result["reason"] == "already_configured"

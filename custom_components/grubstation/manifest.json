@@ -5,8 +5,14 @@
     "@jjack"
   ],
   "config_flow": true,
+  "after_dependencies": [
+    "zeroconf"
+  ],
   "documentation": "https://github.com/jjack/grubstation",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jjack/grubstation/issues",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "zeroconf": [
+    "_grubstation._tcp.local."
+  ]
 }

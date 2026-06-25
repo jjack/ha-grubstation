@@ -16,6 +16,7 @@ from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PIN, CON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import network, selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import GrubStationApiClient, GrubStationApiInvalidPinError, GrubStationApiPinRequiredError
@@ -60,6 +61,40 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._api_key: str | None = None
         self._temporary_webhook_registered: bool = False
         self._daemonless_paired: bool = False
+        self._paired: str | None = None
+
+    async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> config_entries.ConfigFlowResult:
+        """Handle zeroconf discovery."""
+        properties = discovery_info.properties
+
+        def _get_prop(key: str) -> str | None:
+            val = properties.get(key)
+            if isinstance(val, bytes):
+                return val.decode("utf-8")
+            return val
+
+        mac = _get_prop("mac")
+        paired_str = _get_prop("paired")
+        address = _get_prop("address")
+
+        self._host = address or discovery_info.host
+        self._port = discovery_info.port or DEFAULT_AGENT_PORT
+
+        if mac:
+            normalized_mac = mac.lower()
+            await self.async_set_unique_id(normalized_mac)
+            self._abort_if_unique_id_configured(updates={CONF_HOST: self._host})
+            self._mac = normalized_mac
+        else:
+            await self.async_set_unique_id(self._host)
+            self._abort_if_unique_id_configured()
+
+        if discovery_info.hostname:
+            self._hostname = discovery_info.hostname.removesuffix(".")
+        self._paired = paired_str
+        self._is_daemonless = False
+
+        return await self.async_step_pairing()
 
     async def async_step_user(
         self,
