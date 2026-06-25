@@ -14,11 +14,11 @@
     "customizations": {
         "vscode": {
             "extensions": [
+                "astral-sh.uv",
                 "charliermarsh.ruff",
                 "github.vscode-pull-request-github",
                 "ms-python.python",
-                "ms-python.vscode-pylance",
-                "ryanluker.vscode-coverage-gutters"
+                "ms-python.vscode-pylance"
             ],
             "settings": {
                 "files.eol": "\n",
@@ -27,8 +27,11 @@
                 "editor.formatOnSave": true,
                 "editor.formatOnType": false,
                 "files.trimTrailingWhitespace": true,
+                "files.trimFinalNewlines": false,
                 "python.analysis.typeCheckingMode": "basic",
                 "python.analysis.autoImportCompletions": true,
+                "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+                "python.terminal.activateEnvironment": true,
                 "[python]": {
                     "editor.defaultFormatter": "charliermarsh.ruff"
                 }
@@ -41,7 +44,8 @@
             "version": "3.14"
         },
         "ghcr.io/devcontainers-extra/features/apt-packages:1": {
-            "packages": "ffmpeg,libturbojpeg0,libpcap-dev"
-        }
+            "packages": "build-essential,git,ffmpeg,libturbojpeg0,libpcap-dev"
+        },
+        "ghcr.io/devcontainers-extra/features/uv:1": {}
     }
 }
