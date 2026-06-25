@@ -10,12 +10,12 @@ from yarl import URL
 
 from homeassistant import config_entries
 from homeassistant.components import webhook
+from homeassistant.components.network.util import async_get_source_ip
 from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import network, selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.loader import async_get_loaded_integration
-from homeassistant.util.network import async_get_source_ip
 
 from .api import GrubStationApiClient
 from .const import (
