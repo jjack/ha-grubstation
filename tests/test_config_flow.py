@@ -4,7 +4,11 @@ from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.grubstation.api import GrubStationApiInvalidPinError, GrubStationApiPinRequiredError
+from custom_components.grubstation.api import (
+    GrubStationApiConflictError,
+    GrubStationApiInvalidPinError,
+    GrubStationApiPinRequiredError,
+)
 from custom_components.grubstation.const import DOMAIN
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -322,3 +326,47 @@ async def test_config_flow_zeroconf_already_configured(hass: HomeAssistant) -> N
     )
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
+
+
+async def test_config_flow_zeroconf_already_paired(hass: HomeAssistant) -> None:
+    """Test that zeroconf flow displays already_paired error on conflict."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    discovery_info = ZeroconfServiceInfo(
+        ip_address="127.0.0.1",
+        ip_addresses=["127.0.0.1"],
+        hostname="grubstation.local.",
+        name="GrubStation",
+        port=8081,
+        type="_grubstation._tcp.local.",
+        properties={
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "paired": "false",
+            "address": "127.0.0.1",
+        },
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=discovery_info,
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "zeroconf_confirm"
+
+    # Submit pairing step, mock async_pair to raise GrubStationApiConflictError
+    with patch(
+        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
+        side_effect=GrubStationApiConflictError("Conflict: already paired"),
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                "pin": "123456",
+                "apply_config": True,
+            },
+        )
+        assert result2["type"] == "form"
+        assert result2["step_id"] == "zeroconf_confirm"
+        assert result2["errors"] == {"base": "already_paired"}

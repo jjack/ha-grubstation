@@ -37,8 +37,14 @@ class GrubStationApiInvalidPinError(GrubStationApiClientAuthenticationError):
     """Exception to indicate the entered PIN code is invalid."""
 
 
+class GrubStationApiConflictError(GrubStationApiClientError):
+    """Exception to indicate the host is already paired."""
+
+
 async def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
     """Verify that the response is valid."""
+    if response.status == 409:
+        raise GrubStationApiConflictError("Conflict: Host already paired")
     if response.status in (401, 403):
         try:
             body = await response.json()

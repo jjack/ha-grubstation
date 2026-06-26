@@ -47,7 +47,8 @@
             "unknown": "Unknown error occurred.",
             "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled.",
             "invalid_pin": "The PIN code entered is invalid.",
-            "waiting_for_device_callback": "Waiting for pairing callback from the remote device. Please make sure the command has run successfully."
+            "waiting_for_device_callback": "Waiting for pairing callback from the remote device. Please make sure the command has run successfully.",
+            "already_paired": "The host is already paired with Home Assistant. Unpair it from the other instance of Home Assistant or delete its `/etc/grubstation/state.json` file."
         },
         "abort": {
             "already_configured": "This entry is already configured."

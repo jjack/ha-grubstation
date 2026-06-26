@@ -19,7 +19,12 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.loader import async_get_loaded_integration
 
-from .api import GrubStationApiClient, GrubStationApiInvalidPinError, GrubStationApiPinRequiredError
+from .api import (
+    GrubStationApiClient,
+    GrubStationApiConflictError,
+    GrubStationApiInvalidPinError,
+    GrubStationApiPinRequiredError,
+)
 from .const import (
     CONF_APPLY_CONFIG,
     CONF_BOOT_OPTIONS,
@@ -143,6 +148,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     session=async_create_clientsession(self.hass),
                 )
                 response_data = await client.async_pair(pin=pin)
+            except GrubStationApiConflictError:
+                _errors["base"] = "already_paired"
+                webhook.async_unregister(self.hass, self._webhook_id)
             except GrubStationApiPinRequiredError, GrubStationApiInvalidPinError:
                 _errors["base"] = "invalid_pin"
                 webhook.async_unregister(self.hass, self._webhook_id)
@@ -292,6 +300,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except GrubStationApiPinRequiredError:
                 webhook.async_unregister(self.hass, self._webhook_id)
                 return await self.async_step_pin()
+            except GrubStationApiConflictError:
+                _errors["base"] = "already_paired"
+                webhook.async_unregister(self.hass, self._webhook_id)
             except Exception as exception:  # noqa: BLE001
                 LOGGER.exception(exception)
                 _errors["base"] = "connection"
@@ -348,6 +359,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     session=async_create_clientsession(self.hass),
                 )
                 response_data = await client.async_pair(pin=pin)
+            except GrubStationApiConflictError:
+                _errors["base"] = "already_paired"
+                webhook.async_unregister(self.hass, self._webhook_id)
             except GrubStationApiInvalidPinError:
                 _errors["base"] = "invalid_pin"
                 webhook.async_unregister(self.hass, self._webhook_id)
