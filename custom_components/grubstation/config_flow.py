@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import secrets
 from typing import Any
 
 from aiohttp import web
 import voluptuous as vol
-from yarl import URL
 
 from homeassistant import config_entries
 from homeassistant.components import webhook
@@ -517,30 +517,52 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(title=title, data=data)
 
     async def _async_generate_urls(self) -> tuple[str, str]:
-        """Generate default URLs for HA daemon and GRUB."""
-        try:
-            ha_daemon_url = network.get_url(self.hass, require_ssl=True, allow_internal=True, allow_external=False)
-            ha_grub_url = network.get_url(self.hass, require_ssl=False, allow_internal=True, allow_external=False)
-        except network.NoURLAvailableError:
-            ha_daemon_url = "http://homeassistant.local:8123"
-            ha_grub_url = "http://homeassistant.local:8123"
+        """Generate default URLs and options for HA daemon and GRUB."""
+        # 1. Fetch available configured URLs (exactly once per type)
+        secure_url = None
+        with contextlib.suppress(network.NoURLAvailableError):
+            secure_url = network.get_url(self.hass, require_ssl=True, allow_internal=True, allow_external=False)
 
-        # GRUB strictly needs an HTTP IP address and port.
-        try:
-            ha_ip = await async_get_source_ip(self.hass, self._ip_address)
-            url_obj = URL(ha_grub_url).with_scheme("http").with_host(ha_ip)
+        insecure_url = None
+        with contextlib.suppress(network.NoURLAvailableError):
+            insecure_url = network.get_url(self.hass, require_ssl=False, allow_internal=True, allow_external=False)
 
-            # Ensure we have a port. Default to 8123 if it was missing or 443
-            if url_obj.port in (None, 80, 443):
-                url_obj = url_obj.with_port(SERVER_PORT)
+        # GrubStation prefers to use HTTPs to talk to Home Assistant (if available) but GRUB requires
+        # HTTP for the boot portion
+        ha_daemon_url = secure_url or insecure_url
+        grub_url = insecure_url
 
-            ha_grub_url = str(url_obj)
-        except Exception:  # noqa: BLE001
-            LOGGER.debug("Could not determine local IP for ha_grub_url")
-            if ha_grub_url.startswith("https"):
-                ha_grub_url = ha_grub_url.replace("https", "http", 1)
+        # 2. Apply fallback cascade logic if either default URL is missing
+        if not ha_daemon_url or not grub_url:
+            ha_ip = None
+            with contextlib.suppress(Exception):
+                ha_ip = await async_get_source_ip(self.hass, target_ip=None)
 
-        return ha_daemon_url, ha_grub_url
+            if not ha_ip:
+                api = getattr(self.hass.config, "api", None)
+                if api and getattr(api, "host", None) not in ("0.0.0.0", "::", None):
+                    ha_ip = api.host
+
+            if not ha_ip:
+                ha_ip = "127.0.0.1"
+                LOGGER.warning(
+                    "Could not auto-detect Home Assistant IP address. "
+                    "Defaulting to %s — you may need to edit "
+                    "the daemon/grub URLs in the integration options if connection fails.",
+                    ha_ip,
+                )
+
+            port = SERVER_PORT
+            api = getattr(self.hass.config, "api", None)
+            if api and getattr(api, "port", None):
+                port = api.port
+
+            if not ha_daemon_url:
+                ha_daemon_url = f"http://{ha_ip}:{port}"
+            if not grub_url:
+                grub_url = f"http://{ha_ip}:{port}"
+
+        return ha_daemon_url, grub_url
 
 
 class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
