@@ -94,7 +94,93 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._paired = paired_str
         self._is_daemonless = False
 
-        return await self.async_step_pairing()
+        self.context["title_placeholders"] = {
+            "name": f"{self._host} ({self._hostname})" if self._hostname else self._host
+        }
+
+        return await self.async_step_zeroconf_confirm()
+
+    async def async_step_zeroconf_confirm(
+        self,
+        user_input: dict | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Confirm zeroconf discovery and enter PIN."""
+        _errors = {}
+        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+
+        if user_input is not None:
+            pin = user_input[CONF_PIN]
+            self._apply_config = user_input.get(CONF_APPLY_CONFIG, True)
+            self._ha_daemon_url = user_input.get(CONF_HA_DAEMON_URL, ha_daemon_url)
+            self._ha_grub_url = user_input.get(CONF_HA_GRUB_URL, ha_grub_url)
+            self._turn_off_action = None
+
+            if not self._webhook_id:
+                self._webhook_id = webhook.async_generate_id()
+            if not self._api_key:
+                self._api_key = secrets.token_hex(32)
+
+            try:
+                webhook.async_register(
+                    self.hass,
+                    DOMAIN,
+                    "GrubStation Webhook",
+                    self._webhook_id,
+                    async_handle_webhook,
+                )
+                client = GrubStationApiClient(
+                    config={
+                        CONF_HOST: self._host,
+                        CONF_PORT: self._port,
+                        CONF_MAC: self._mac,
+                        CONF_DAEMONLESS: self._is_daemonless,
+                        CONF_WEBHOOK_ID: self._webhook_id,
+                        CONF_API_KEY: self._api_key,
+                        CONF_HA_DAEMON_URL: self._ha_daemon_url,
+                        CONF_HA_GRUB_URL: self._ha_grub_url,
+                        CONF_APPLY_CONFIG: self._apply_config,
+                    },
+                    session=async_create_clientsession(self.hass),
+                )
+                response_data = await client.async_pair(pin=pin)
+            except GrubStationApiPinRequiredError, GrubStationApiInvalidPinError:
+                _errors["base"] = "invalid_pin"
+                webhook.async_unregister(self.hass, self._webhook_id)
+            except Exception as exception:  # noqa: BLE001
+                LOGGER.exception(exception)
+                _errors["base"] = "connection"
+                webhook.async_unregister(self.hass, self._webhook_id)
+            else:
+                webhook.async_unregister(self.hass, self._webhook_id)
+                self._mac = response_data.get("mac", self._mac)
+                self._boot_options = response_data.get("boot_options")
+                return self._async_create_grubstation_entry()
+
+        return self.async_show_form(
+            step_id="zeroconf_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PIN): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        )
+                    ),
+                    vol.Required(CONF_APPLY_CONFIG, default=True): selector.BooleanSelector(),
+                    vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                    vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                }
+            ),
+            description_placeholders={
+                "name": self._hostname or self._host,
+                "host": self._host,
+                "port": self._port,
+            },
+            errors=_errors,
+        )
 
     async def async_step_user(
         self,
@@ -218,7 +304,16 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="pairing",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                    vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                }
+            ),
             errors=_errors,
         )
 
@@ -364,6 +459,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_HA_GRUB_URL: self._ha_grub_url,
             CONF_APPLY_CONFIG: self._apply_config,
             CONF_TURN_OFF_ACTION: self._turn_off_action,
+            "hostname": self._hostname,
         }
         if self._is_daemonless:
             title = f"GrubStation ({self._host}) [Manual]"

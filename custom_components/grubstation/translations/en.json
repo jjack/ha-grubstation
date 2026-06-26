@@ -1,5 +1,6 @@
 {
     "config": {
+        "flow_title": "{name}",
         "step": {
             "user": {
                 "description": "If you need help with the configuration have a look here: {documentation_url}",
@@ -12,7 +13,11 @@
             },
             "pairing": {
                 "title": "Pairing",
-                "description": "Click Submit to pair and automatically generate a webhook ID and API key."
+                "description": "Click Submit to pair and automatically generate a webhook ID and API key.",
+                "data": {
+                    "ha_daemon_url": "Home Assistant Daemon URL (HTTPS/Secure)",
+                    "ha_grub_url": "GRUB Boot URL (HTTP/IP)"
+                }
             },
             "pin": {
                 "title": "PIN Verification Required",
@@ -24,6 +29,16 @@
             "daemonless_onboarding": {
                 "title": "Daemonless Onboarding",
                 "description": "Run the following command on your remote machine to pair it with Home Assistant. Once the command completes successfully, click Submit.\n\nCommand:\n```bash\n{pairing_command}\n```"
+            },
+            "zeroconf_confirm": {
+                "title": "Pair GrubStation",
+                "description": "Please enter the PIN code displayed on your GrubStation Screen/Agent terminal/logs for {name} to complete pairing.\n\nConfigured Host: {host}:{port}",
+                "data": {
+                    "pin": "PIN Code",
+                    "apply_config": "Apply GRUB configuration changes automatically",
+                    "ha_daemon_url": "Home Assistant Daemon URL (HTTPS/Secure)",
+                    "ha_grub_url": "GRUB Boot URL (HTTP/IP)"
+                }
             }
         },
         "error": {

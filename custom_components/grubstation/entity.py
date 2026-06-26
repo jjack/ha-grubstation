@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from homeassistant.const import CONF_HOST
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -18,6 +19,11 @@ class GrubStationEntity(CoordinatorEntity[BlueprintDataUpdateCoordinator]):
         """Initialize."""
         super().__init__(coordinator)
         self._attr_unique_id = coordinator.config_entry.entry_id
+
+        host = coordinator.config_entry.data.get(CONF_HOST)
+        hostname = coordinator.config_entry.data.get("hostname")
+        device_name = f"{host} ({hostname})" if hostname else host
+
         self._attr_device_info = DeviceInfo(
             identifiers={
                 (
@@ -25,4 +31,5 @@ class GrubStationEntity(CoordinatorEntity[BlueprintDataUpdateCoordinator]):
                     coordinator.config_entry.entry_id,
                 ),
             },
+            name=device_name,
         )

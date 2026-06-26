@@ -222,10 +222,12 @@ async def test_api_pair_with_pin_success() -> None:
     response.json = mock_json
 
     last_data = None
+    last_headers = None
 
     async def mock_request(*args: Any, **kwargs: Any) -> MagicMock:
-        nonlocal last_data
+        nonlocal last_data, last_headers
         last_data = kwargs.get("json")
+        last_headers = kwargs.get("headers")
         return response
 
     session = MagicMock()
@@ -253,4 +255,5 @@ async def test_api_pair_with_pin_success() -> None:
         "boot_options": ["linux", "windows"],
     }
     assert last_data is not None
-    assert last_data["pin"] == "123456"
+    assert last_headers is not None
+    assert last_headers.get("Authorization") == "Bearer 123456"

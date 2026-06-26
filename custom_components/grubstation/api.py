@@ -87,12 +87,14 @@ class GrubStationApiClient:
             "ha_grub_url": self._ha_grub_url,
             "apply_config": self._apply_config,
         }
+        headers = {}
         if pin is not None:
-            pairing_payload["pin"] = pin
+            headers["Authorization"] = f"Bearer {pin}"
         return await self._api_wrapper(
             method="post",
             url=f"http://{self._host}:{self._port}/pair",
             data=pairing_payload,
+            headers=headers,
         )
 
     async def async_unpair(self) -> Any:

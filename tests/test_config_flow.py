@@ -256,21 +256,33 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         data=discovery_info,
     )
     assert result["type"] == "form"
-    assert result["step_id"] == "pairing"
+    assert result["step_id"] == "zeroconf_confirm"
+
+    # Verify context title_placeholders is populated for discovery page
+    flow = hass.config_entries.flow._progress[result["flow_id"]]
+    assert flow.context["title_placeholders"] == {"name": "127.0.0.1 (grubstation.local)"}
 
     # Submit pairing step, which generates credentials and calls pairing API
     with patch(
         "custom_components.grubstation.api.GrubStationApiClient.async_pair",
         return_value={"paired": True},
-    ):
+    ) as mock_pair:
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {},
+            {
+                "pin": "123456",
+                "apply_config": True,
+                "ha_daemon_url": "https://my-ha.duckdns.org:8123",
+                "ha_grub_url": "http://10.15.0.5:8123",
+            },
         )
         assert result2["type"] == "create_entry"
         assert result2["title"] == "grubstation.local (127.0.0.1)"
         assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
         assert result2["data"]["host"] == "127.0.0.1"
+        assert result2["data"]["ha_daemon_url"] == "https://my-ha.duckdns.org:8123"
+        assert result2["data"]["ha_grub_url"] == "http://10.15.0.5:8123"
+        mock_pair.assert_called_once_with(pin="123456")
 
 
 async def test_config_flow_zeroconf_already_configured(hass: HomeAssistant) -> None:

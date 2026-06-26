@@ -6,6 +6,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.grubstation.const import DOMAIN
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.setup import async_setup_component
 
 
@@ -27,6 +28,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
             "ha_grub_url": "http://127.0.0.1:8123",
             "apply_config": True,
             "boot_options": ["Linux"],
+            "hostname": "wyse04",
         },
     )
     entry.add_to_hass(hass)
@@ -48,6 +50,12 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+
+        # Verify that the device is registered with the correct name
+        device_registry = dr.async_get(hass)
+        device = device_registry.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+        assert device is not None
+        assert device.name == "127.0.0.1 (wyse04)"
 
         # Verify that pre-boot view is registered and works
         client = await hass_client()
