@@ -174,6 +174,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self._boot_options = response_data.get("boot_options")
                 return self._async_create_grubstation_entry()
 
+        integration = async_get_loaded_integration(self.hass, DOMAIN)
+        assert integration.documentation is not None, "Integration documentation URL is not set in manifest.json"
+
         return self.async_show_form(
             step_id="zeroconf_confirm",
             data_schema=vol.Schema(
@@ -183,19 +186,18 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         )
                     ),
-                    vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
                     vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
                     vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
-                    vol.Optional(CONF_TURN_OFF_ACTION): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
+                    vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
+                    vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
                 }
             ),
             description_placeholders={
+                "documentation_url": integration.documentation,
                 "name": self._hostname or self._ip_address,
                 "host": self._ip_address,
                 "port": self._port,
@@ -270,11 +272,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_TURN_OFF_ACTION,
                         default=(user_input or {}).get(CONF_TURN_OFF_ACTION, vol.UNDEFINED),
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.TEXT,
-                        ),
-                    ),
+                    ): selector.ActionSelector(),
                 },
             ),
             errors=_errors,
@@ -349,9 +347,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
-                    vol.Optional(CONF_TURN_OFF_ACTION): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
+                    vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
                 }
             ),
             errors=_errors,
@@ -618,7 +614,7 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_TURN_OFF_ACTION,
                         description={"suggested_value": current.get(CONF_TURN_OFF_ACTION)},
-                    ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
+                    ): selector.ActionSelector(),
                 }
             ),
             errors=_errors,
