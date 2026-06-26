@@ -77,7 +77,7 @@ class GrubStationBinarySensor(GrubStationEntity, BinarySensorEntity):
         """Update entity state by polling async_get_status."""
         try:
             status = await self.coordinator.config_entry.runtime_data.client.async_get_status()
-            self._attr_is_on = status.get("status") == "running"
+            self._attr_is_on = status.get("status") in ("running", "on")
             self._extra_attributes = {
                 ATTR_OS: status.get("os"),
                 ATTR_SERVICE_MANAGER: status.get("service_manager"),
