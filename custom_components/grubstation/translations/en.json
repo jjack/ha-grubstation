@@ -15,8 +15,8 @@
                 "title": "Pairing",
                 "description": "Click Submit to pair and automatically generate a webhook ID and API key.",
                 "data": {
-                    "ha_daemon_url": "Home Assistant Daemon URL (HTTPS/Secure)",
-                    "ha_grub_url": "GRUB Boot URL (HTTP/IP)"
+                    "ha_daemon_url": "Home Assistant Daemon URL (HTTPS allowed)",
+                    "ha_grub_url": "GRUB Boot URL (Must be HTTP)"
                 }
             },
             "pin": {
@@ -35,9 +35,13 @@
                 "description": "Please enter the PIN code displayed on your GrubStation Screen/Agent terminal/logs for {name} to complete pairing.\n\nConfigured Host: {host}:{port}",
                 "data": {
                     "pin": "PIN Code",
-                    "apply_config": "Apply GRUB configuration changes automatically",
-                    "ha_daemon_url": "Home Assistant Daemon URL (HTTPS/Secure)",
-                    "ha_grub_url": "GRUB Boot URL (HTTP/IP)"
+                    "update_grub": "Apply GRUB configuration changes and run `update-grub` automatically",
+                    "ha_daemon_url": "Home Assistant Daemon URL (HTTPS allowed)",
+                    "ha_grub_url": "GRUB Boot URL (Must be HTTP)"
+                },
+                "data_description": {
+                    "update_grub": "If you choose not to run 'update-grub' now, you can manually it later.",
+                    "turn_off_action": "Optional custom action (like a script or service call) to run when turning off this host instead of the default daemon agent shutdown command. Note: A custom action is required for daemonless hosts."
                 }
             }
         },

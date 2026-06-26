@@ -38,7 +38,7 @@ async def test_api_pair() -> None:
             "api_key": "test_key",
             "ha_daemon_url": "http://127.0.0.1:8123",
             "ha_grub_url": "http://127.0.0.1:8123",
-            "apply_config": True,
+            "update_grub": True,
         },
         session=session,
     )
@@ -77,7 +77,7 @@ async def test_api_unpair() -> None:
             "api_key": "test_key",
             "ha_daemon_url": "http://127.0.0.1:8123",
             "ha_grub_url": "http://127.0.0.1:8123",
-            "apply_config": True,
+            "update_grub": True,
         },
         session=session,
     )
@@ -122,7 +122,7 @@ async def test_api_get_status() -> None:
             "api_key": "test_key",
             "ha_daemon_url": "http://127.0.0.1:8123",
             "ha_grub_url": "http://127.0.0.1:8123",
-            "apply_config": True,
+            "update_grub": True,
         },
         session=session,
     )
@@ -163,7 +163,7 @@ async def test_api_pair_pin_required() -> None:
             "api_key": "test_key",
             "ha_daemon_url": "http://127.0.0.1:8123",
             "ha_grub_url": "http://127.0.0.1:8123",
-            "apply_config": True,
+            "update_grub": True,
         },
         session=session,
     )
@@ -198,7 +198,7 @@ async def test_api_pair_invalid_pin() -> None:
             "api_key": "test_key",
             "ha_daemon_url": "http://127.0.0.1:8123",
             "ha_grub_url": "http://127.0.0.1:8123",
-            "apply_config": True,
+            "update_grub": True,
         },
         session=session,
     )
@@ -243,7 +243,7 @@ async def test_api_pair_with_pin_success() -> None:
             "api_key": "test_key",
             "ha_daemon_url": "http://127.0.0.1:8123",
             "ha_grub_url": "http://127.0.0.1:8123",
-            "apply_config": True,
+            "update_grub": True,
         },
         session=session,
     )

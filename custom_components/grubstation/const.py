@@ -15,7 +15,7 @@ CONF_BOOT_OPTIONS = "boot_options"
 CONF_DAEMONLESS = "daemonless"
 CONF_HA_DAEMON_URL = "ha_daemon_url"
 CONF_HA_GRUB_URL = "ha_grub_url"
-CONF_APPLY_CONFIG = "apply_config"
+CONF_UPDATE_GRUB = "update_grub"
 CONF_TURN_OFF_ACTION = "turn_off_action"
 
 DEFAULT_AGENT_PORT = 8081

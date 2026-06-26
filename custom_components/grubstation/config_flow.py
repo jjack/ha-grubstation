@@ -26,12 +26,12 @@ from .api import (
     GrubStationApiPinRequiredError,
 )
 from .const import (
-    CONF_APPLY_CONFIG,
     CONF_BOOT_OPTIONS,
     CONF_DAEMONLESS,
     CONF_HA_DAEMON_URL,
     CONF_HA_GRUB_URL,
     CONF_TURN_OFF_ACTION,
+    CONF_UPDATE_GRUB,
     DEFAULT_AGENT_PORT,
     DEFAULT_DAEMONLESS,
     DOMAIN,
@@ -116,7 +116,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             pin = user_input[CONF_PIN]
-            self._apply_config = user_input.get(CONF_APPLY_CONFIG, True)
+            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
             self._ha_daemon_url = user_input.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = user_input.get(CONF_HA_GRUB_URL, ha_grub_url)
             self._turn_off_action = None
@@ -144,7 +144,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_API_KEY: self._api_key,
                         CONF_HA_DAEMON_URL: self._ha_daemon_url,
                         CONF_HA_GRUB_URL: self._ha_grub_url,
-                        CONF_APPLY_CONFIG: self._apply_config,
+                        CONF_UPDATE_GRUB: self._update_grub,
                     },
                     session=async_create_clientsession(self.hass),
                 )
@@ -174,7 +174,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         )
                     ),
-                    vol.Required(CONF_APPLY_CONFIG, default=True): selector.BooleanSelector(),
+                    vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
                     vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
@@ -274,7 +274,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._ha_daemon_url = user_input.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = user_input.get(CONF_HA_GRUB_URL, ha_grub_url)
-            self._apply_config = user_input.get(CONF_APPLY_CONFIG, True)
+            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
             self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
 
             try:
@@ -295,7 +295,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_API_KEY: self._api_key,
                         CONF_HA_DAEMON_URL: self._ha_daemon_url,
                         CONF_HA_GRUB_URL: self._ha_grub_url,
-                        CONF_APPLY_CONFIG: self._apply_config,
+                        CONF_UPDATE_GRUB: self._update_grub,
                     },
                     session=async_create_clientsession(self.hass),
                 )
@@ -357,7 +357,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_API_KEY: self._api_key,
                         CONF_HA_DAEMON_URL: self._ha_daemon_url,
                         CONF_HA_GRUB_URL: self._ha_grub_url,
-                        CONF_APPLY_CONFIG: self._apply_config,
+                        CONF_UPDATE_GRUB: self._update_grub,
                     },
                     session=async_create_clientsession(self.hass),
                 )
@@ -408,7 +408,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         self._ha_daemon_url = ha_daemon_url
         self._ha_grub_url = ha_grub_url
-        self._apply_config = True
+        self._update_grub = True
         self._turn_off_action = None
 
         payload_dict = {
@@ -416,7 +416,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             "webhook_id": self._webhook_id,
             "api_key": self._api_key,
             "ha_grub_url": f"{ha_grub_url}/api/grubstation/boot",
-            "apply_config": True,
+            "update_grub": True,
         }
         payload_str = json.dumps(payload_dict)
         pairing_command = f"sudo grubstation pair --payload '{payload_str}'"
@@ -474,7 +474,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_API_KEY: self._api_key,
             CONF_HA_DAEMON_URL: self._ha_daemon_url,
             CONF_HA_GRUB_URL: self._ha_grub_url,
-            CONF_APPLY_CONFIG: self._apply_config,
+            CONF_UPDATE_GRUB: self._update_grub,
             CONF_TURN_OFF_ACTION: self._turn_off_action,
             "hostname": self._hostname,
         }

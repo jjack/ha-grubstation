@@ -10,7 +10,7 @@ import aiohttp
 
 from homeassistant.const import CONF_API_KEY, CONF_IP_ADDRESS, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID
 
-from .const import CONF_APPLY_CONFIG, CONF_DAEMONLESS, CONF_HA_DAEMON_URL, CONF_HA_GRUB_URL
+from .const import CONF_DAEMONLESS, CONF_HA_DAEMON_URL, CONF_HA_GRUB_URL, CONF_UPDATE_GRUB
 
 
 class GrubStationApiClientError(Exception):
@@ -80,7 +80,7 @@ class GrubStationApiClient:
         self._api_key = config.get(CONF_API_KEY)
         self._ha_daemon_url = config.get(CONF_HA_DAEMON_URL)
         self._ha_grub_url = config.get(CONF_HA_GRUB_URL)
-        self._apply_config = config.get(CONF_APPLY_CONFIG, True)
+        self._update_grub = config.get(CONF_UPDATE_GRUB, True)
         self._session = session
 
     async def async_pair(self, pin: str | None = None) -> Any:
@@ -91,7 +91,7 @@ class GrubStationApiClient:
             "api_key": self._api_key,
             "ha_daemon_url": self._ha_daemon_url,
             "ha_grub_url": self._ha_grub_url,
-            "apply_config": self._apply_config,
+            "update_grub": self._update_grub,
         }
         headers = {}
         if pin is not None:

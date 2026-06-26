@@ -296,7 +296,7 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
             result["flow_id"],
             {
                 "pin": "123456",
-                "apply_config": True,
+                "update_grub": True,
                 "ha_daemon_url": "https://my-ha.duckdns.org:8123",
                 "ha_grub_url": "http://10.15.0.5:8123",
             },
@@ -307,6 +307,7 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         assert result2["data"]["ip_address"] == "127.0.0.1"
         assert result2["data"]["ha_daemon_url"] == "https://my-ha.duckdns.org:8123"
         assert result2["data"]["ha_grub_url"] == "http://10.15.0.5:8123"
+        assert result2["data"]["update_grub"] is True
         mock_pair.assert_called_once_with(pin="123456")
 
 
@@ -385,7 +386,7 @@ async def test_config_flow_zeroconf_already_paired(hass: HomeAssistant) -> None:
             result["flow_id"],
             {
                 "pin": "123456",
-                "apply_config": True,
+                "update_grub": True,
             },
         )
         assert result2["type"] == "form"
