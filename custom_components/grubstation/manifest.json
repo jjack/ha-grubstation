@@ -5,12 +5,19 @@
     "@jjack"
   ],
   "config_flow": true,
-  "after_dependencies": [
+  "dependencies": [
+    "http",
+    "network",
+    "webhook",
     "zeroconf"
   ],
   "documentation": "https://github.com/jjack/grubstation",
+  "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jjack/grubstation/issues",
+  "requirements": [
+    "wakeonlan==1.1.6"
+  ],
   "version": "0.1.0",
   "zeroconf": [
     "_grubstation._tcp.local."
