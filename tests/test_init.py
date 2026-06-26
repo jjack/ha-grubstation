@@ -19,7 +19,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            "host": "127.0.0.1",
+            "host": "192.168.1.100",
             "port": 8081,
             "mac": "AA:BB:CC:DD:EE:FF",
             "webhook_id": "test_permanent_webhook",
@@ -28,7 +28,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
             "ha_grub_url": "http://127.0.0.1:8123",
             "apply_config": True,
             "boot_options": ["Linux"],
-            "hostname": "wyse04",
+            "hostname": "test01",
         },
     )
     entry.add_to_hass(hass)
@@ -55,7 +55,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         device_registry = dr.async_get(hass)
         device = device_registry.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
         assert device is not None
-        assert device.name == "127.0.0.1 (wyse04)"
+        assert device.name == "test01 (192.168.1.100)"
 
         # Verify that pre-boot view is registered and works
         client = await hass_client()

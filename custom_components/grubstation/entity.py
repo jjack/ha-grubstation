@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import ATTRIBUTION
 from .coordinator import BlueprintDataUpdateCoordinator
+from .helpers import format_display_name
 
 
 class GrubStationEntity(CoordinatorEntity[BlueprintDataUpdateCoordinator]):
@@ -22,7 +23,7 @@ class GrubStationEntity(CoordinatorEntity[BlueprintDataUpdateCoordinator]):
 
         host = coordinator.config_entry.data.get(CONF_HOST)
         hostname = coordinator.config_entry.data.get("hostname")
-        device_name = f"{host} ({hostname})" if hostname else host
+        device_name = format_display_name(host, hostname)
 
         self._attr_device_info = DeviceInfo(
             identifiers={

@@ -38,6 +38,7 @@ from .const import (
     LOGGER,
     SERVER_PORT,
 )
+from .helpers import format_display_name
 
 
 async def async_handle_webhook(
@@ -484,7 +485,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             )
         else:
-            title = f"{self._hostname} ({self._host})" if self._hostname else f"GrubStation ({self._host})"
+            title = format_display_name(self._host, self._hostname, "GrubStation")
         return self.async_create_entry(title=title, data=data)
 
     async def _async_generate_urls(self) -> tuple[str, str]:
