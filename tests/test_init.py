@@ -20,7 +20,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            "host": "192.168.1.100",
+            "ip_address": "192.168.1.100",
             "port": 8081,
             "mac": "AA:BB:CC:DD:EE:FF",
             "webhook_id": "test_permanent_webhook",
@@ -142,7 +142,7 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "AA:BB:CC:DD:EE:FF",
             "webhook_id": "test_permanent_webhook",

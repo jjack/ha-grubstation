@@ -8,7 +8,7 @@ from typing import Any
 
 import aiohttp
 
-from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID
+from homeassistant.const import CONF_API_KEY, CONF_IP_ADDRESS, CONF_MAC, CONF_PORT, CONF_WEBHOOK_ID
 
 from .const import CONF_APPLY_CONFIG, CONF_DAEMONLESS, CONF_HA_DAEMON_URL, CONF_HA_GRUB_URL
 
@@ -72,7 +72,7 @@ class GrubStationApiClient:
         session: aiohttp.ClientSession,
     ) -> None:
         """Sample API Client."""
-        self._host = config[CONF_HOST]
+        self._ip_address = config[CONF_IP_ADDRESS]
         self._port = config[CONF_PORT]
         self._mac = config.get(CONF_MAC)
         self._daemonless = config.get(CONF_DAEMONLESS, False)
@@ -98,7 +98,7 @@ class GrubStationApiClient:
             headers["Authorization"] = f"Bearer {pin}"
         return await self._api_wrapper(
             method="post",
-            url=f"http://{self._host}:{self._port}/pair",
+            url=f"http://{self._ip_address}:{self._port}/pair",
             data=pairing_payload,
             headers=headers,
         )
@@ -110,7 +110,7 @@ class GrubStationApiClient:
             headers["Authorization"] = f"Bearer {self._api_key}"
         return await self._api_wrapper(
             method="post",
-            url=f"http://{self._host}:{self._port}/unpair",
+            url=f"http://{self._ip_address}:{self._port}/unpair",
             headers=headers,
         )
 
@@ -121,7 +121,7 @@ class GrubStationApiClient:
             headers["Authorization"] = f"Bearer {self._api_key}"
         return await self._api_wrapper(
             method="get",
-            url=f"http://{self._host}:{self._port}/status",
+            url=f"http://{self._ip_address}:{self._port}/status",
             headers=headers,
         )
 

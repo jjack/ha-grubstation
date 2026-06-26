@@ -12,7 +12,7 @@ from yarl import URL
 from homeassistant import config_entries
 from homeassistant.components import webhook
 from homeassistant.components.network.util import async_get_source_ip
-from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_MAC, CONF_PIN, CONF_PORT, CONF_WEBHOOK_ID
+from homeassistant.const import CONF_API_KEY, CONF_IP_ADDRESS, CONF_MAC, CONF_PIN, CONF_PORT, CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import network, selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
@@ -38,7 +38,7 @@ from .const import (
     LOGGER,
     SERVER_PORT,
 )
-from .helpers import format_display_name
+from .helpers import format_display_name, is_ip_address
 
 
 async def async_handle_webhook(
@@ -57,7 +57,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Initialize the config flow."""
-        self._host: str | None = None
+        self._ip_address: str | None = None
         self._hostname: str | None = None
         self._port: int = DEFAULT_AGENT_PORT
         self._mac: str | None = None
@@ -71,6 +71,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> config_entries.ConfigFlowResult:
         """Handle zeroconf discovery."""
+        LOGGER.debug("Zeroconf discovery payload: %s", discovery_info)
         properties = discovery_info.properties
 
         def _get_prop(key: str) -> str | None:
@@ -81,18 +82,17 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         mac = _get_prop("mac")
         paired_str = _get_prop("paired")
-        address = _get_prop("address")
 
-        self._host = address or discovery_info.host
+        self._ip_address = str(discovery_info.ip_address)
         self._port = discovery_info.port or DEFAULT_AGENT_PORT
 
         if mac:
             normalized_mac = mac.lower()
             await self.async_set_unique_id(normalized_mac)
-            self._abort_if_unique_id_configured(updates={CONF_HOST: self._host})
+            self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
             self._mac = normalized_mac
         else:
-            await self.async_set_unique_id(self._host)
+            await self.async_set_unique_id(self._ip_address)
             self._abort_if_unique_id_configured()
 
         if discovery_info.hostname:
@@ -101,7 +101,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._is_daemonless = False
 
         self.context["title_placeholders"] = {
-            "name": f"{self._host} ({self._hostname})" if self._hostname else self._host
+            "name": f"{self._ip_address} ({self._hostname})" if self._hostname else self._ip_address
         }
 
         return await self.async_step_zeroconf_confirm()
@@ -136,7 +136,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 client = GrubStationApiClient(
                     config={
-                        CONF_HOST: self._host,
+                        CONF_IP_ADDRESS: self._ip_address,
                         CONF_PORT: self._port,
                         CONF_MAC: self._mac,
                         CONF_DAEMONLESS: self._is_daemonless,
@@ -184,8 +184,8 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             description_placeholders={
-                "name": self._hostname or self._host,
-                "host": self._host,
+                "name": self._hostname or self._ip_address,
+                "host": self._ip_address,
                 "port": self._port,
             },
             errors=_errors,
@@ -198,12 +198,14 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle a flow initialized by the user."""
         _errors: dict[str, str] = {}
         if user_input is not None:
-            self._host = user_input[CONF_HOST]
+            self._ip_address = user_input[CONF_IP_ADDRESS]
             self._port = user_input[CONF_PORT]
             self._mac = user_input.get(CONF_MAC)
             self._is_daemonless = user_input.get(CONF_DAEMONLESS, False)
 
-            if self._is_daemonless and not self._mac:
+            if not is_ip_address(self._ip_address):
+                _errors[CONF_IP_ADDRESS] = "invalid_ip"
+            elif self._is_daemonless and not self._mac:
                 _errors[CONF_MAC] = "mac_required_for_daemonless"
             else:
                 if self._is_daemonless:
@@ -221,8 +223,8 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_HOST,
-                        default=(user_input or {}).get(CONF_HOST, vol.UNDEFINED),
+                        CONF_IP_ADDRESS,
+                        default=(user_input or {}).get(CONF_IP_ADDRESS, vol.UNDEFINED),
                     ): selector.TextSelector(
                         selector.TextSelectorConfig(
                             type=selector.TextSelectorType.TEXT,
@@ -285,7 +287,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 client = GrubStationApiClient(
                     config={
-                        CONF_HOST: self._host,
+                        CONF_IP_ADDRESS: self._ip_address,
                         CONF_PORT: self._port,
                         CONF_MAC: self._mac,
                         CONF_DAEMONLESS: self._is_daemonless,
@@ -347,7 +349,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 client = GrubStationApiClient(
                     config={
-                        CONF_HOST: self._host,
+                        CONF_IP_ADDRESS: self._ip_address,
                         CONF_PORT: self._port,
                         CONF_MAC: self._mac,
                         CONF_DAEMONLESS: self._is_daemonless,
@@ -465,7 +467,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def _async_create_grubstation_entry(self) -> config_entries.ConfigFlowResult:
         """Create the config entry."""
         data = {
-            CONF_HOST: self._host,
+            CONF_IP_ADDRESS: self._ip_address,
             CONF_PORT: self._port,
             CONF_MAC: self._mac,
             CONF_WEBHOOK_ID: self._webhook_id,
@@ -477,7 +479,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             "hostname": self._hostname,
         }
         if self._is_daemonless:
-            title = f"GrubStation ({self._host}) [Manual]"
+            title = f"GrubStation ({self._ip_address}) [Manual]"
             data.update(
                 {
                     CONF_DAEMONLESS: True,
@@ -485,7 +487,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             )
         else:
-            title = format_display_name(self._host, self._hostname, "GrubStation")
+            title = format_display_name(self._ip_address, self._hostname, "GrubStation")
         return self.async_create_entry(title=title, data=data)
 
     async def _async_generate_urls(self) -> tuple[str, str]:
@@ -499,7 +501,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         # GRUB strictly needs an HTTP IP address and port.
         try:
-            ha_ip = await async_get_source_ip(self.hass, self._host)
+            ha_ip = await async_get_source_ip(self.hass, self._ip_address)
             url_obj = URL(ha_grub_url).with_scheme("http").with_host(ha_ip)
 
             # Ensure we have a port. Default to 8123 if it was missing or 443

@@ -5,7 +5,7 @@
             "user": {
                 "description": "If you need help with the configuration have a look here: {documentation_url}",
                 "data": {
-                    "host": "Host address",
+                    "ip_address": "IP address",
                     "port": "Port",
                     "mac": "MAC address",
                     "daemonless": "Daemonless mode"
@@ -48,7 +48,8 @@
             "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled.",
             "invalid_pin": "The PIN code entered is invalid.",
             "waiting_for_device_callback": "Waiting for pairing callback from the remote device. Please make sure the command has run successfully.",
-            "already_paired": "The host is already paired with Home Assistant. Unpair it from the other instance of Home Assistant or delete its `/etc/grubstation/state.json` file."
+            "already_paired": "The host is already paired with Home Assistant. Unpair it from the other instance of Home Assistant or delete its `/etc/grubstation/state.json` file.",
+            "invalid_ip": "Please enter a valid IP address."
         },
         "abort": {
             "already_configured": "This entry is already configured."

@@ -26,7 +26,7 @@ async def test_config_flow(hass: HomeAssistant) -> None:
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -58,7 +58,7 @@ async def test_config_flow_daemonless_requires_mac(hass: HomeAssistant) -> None:
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "",
             "daemonless": True,
@@ -67,6 +67,27 @@ async def test_config_flow_daemonless_requires_mac(hass: HomeAssistant) -> None:
     assert result2["type"] == "form"
     assert result2["step_id"] == "user"
     assert "mac" in result2["errors"]
+
+
+async def test_config_flow_invalid_ip(hass: HomeAssistant) -> None:
+    """Test that config flow rejects a host that is not an IP address."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+    # Submit user step with a non-IP host address
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "ip_address": "grubstation.local",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "daemonless": False,
+        },
+    )
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "user"
+    assert result2["errors"] == {"ip_address": "invalid_ip"}
 
 
 async def test_config_flow_pin_required_and_invalid_and_success(
@@ -81,7 +102,7 @@ async def test_config_flow_pin_required_and_invalid_and_success(
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -140,7 +161,7 @@ async def test_config_flow_pin_connection_error(hass: HomeAssistant) -> None:
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -185,7 +206,7 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "host": "192.168.1.10",
+            "ip_address": "192.168.1.10",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": True,
@@ -283,7 +304,7 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         assert result2["type"] == "create_entry"
         assert result2["title"] == "grubstation.local (127.0.0.1)"
         assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
-        assert result2["data"]["host"] == "127.0.0.1"
+        assert result2["data"]["ip_address"] == "127.0.0.1"
         assert result2["data"]["ha_daemon_url"] == "https://my-ha.duckdns.org:8123"
         assert result2["data"]["ha_grub_url"] == "http://10.15.0.5:8123"
         mock_pair.assert_called_once_with(pin="123456")
@@ -297,7 +318,7 @@ async def test_config_flow_zeroconf_already_configured(hass: HomeAssistant) -> N
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
         },

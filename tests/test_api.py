@@ -30,7 +30,7 @@ async def test_api_pair() -> None:
 
     client = GrubStationApiClient(
         config={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -69,7 +69,7 @@ async def test_api_unpair() -> None:
 
     client = GrubStationApiClient(
         config={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -114,7 +114,7 @@ async def test_api_get_status() -> None:
 
     client = GrubStationApiClient(
         config={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -155,7 +155,7 @@ async def test_api_pair_pin_required() -> None:
 
     client = GrubStationApiClient(
         config={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -190,7 +190,7 @@ async def test_api_pair_invalid_pin() -> None:
 
     client = GrubStationApiClient(
         config={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,
@@ -235,7 +235,7 @@ async def test_api_pair_with_pin_success() -> None:
 
     client = GrubStationApiClient(
         config={
-            "host": "127.0.0.1",
+            "ip_address": "127.0.0.1",
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": False,

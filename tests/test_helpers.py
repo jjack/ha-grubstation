@@ -20,13 +20,3 @@ def test_format_display_name() -> None:
 
     # 2. Host is an IP address
     assert format_display_name("192.168.1.100", "livingroom-pc.local") == "livingroom-pc.local (192.168.1.100)"
-
-    # 3. Host and hostname are redundant (share same prefix)
-    assert format_display_name("livingroom-pc.home.arpa", "livingroom-pc.local") == "livingroom-pc.home.arpa"
-    assert format_display_name("livingroom-pc.local", "livingroom-pc.local") == "livingroom-pc.local"
-
-    # 4. Host and hostname are completely different
-    assert (
-        format_display_name("bedroom-pc.home.arpa", "livingroom-pc.local")
-        == "livingroom-pc.local (bedroom-pc.home.arpa)"
-    )
