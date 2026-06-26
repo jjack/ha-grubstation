@@ -202,7 +202,7 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
     assert result["type"] == "form"
     assert result["step_id"] == "user"
 
-    # Fill host info, port, mac, and daemonless=True
+    # Fill host info, port, mac, daemonless=True, and turn_off_action
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
@@ -210,6 +210,7 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
             "port": 8081,
             "mac": "aa:bb:cc:dd:ee:ff",
             "daemonless": True,
+            "turn_off_action": "script.shutdown_my_pc",
         },
     )
     assert result2["type"] == "form"
@@ -254,6 +255,27 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
         "Ubuntu",
         "Windows Boot Manager",
     ]
+
+
+async def test_config_flow_daemonless_requires_turn_off_action(hass: HomeAssistant) -> None:
+    """Test that daemonless mode requires a turn_off_action."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+    # Submit with daemonless=True but no turn_off_action
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "ip_address": "192.168.1.10",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "daemonless": True,
+        },
+    )
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "user"
+    assert "turn_off_action" in result2["errors"]
 
 
 async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
@@ -392,3 +414,114 @@ async def test_config_flow_zeroconf_already_paired(hass: HomeAssistant) -> None:
         assert result2["type"] == "form"
         assert result2["step_id"] == "zeroconf_confirm"
         assert result2["errors"] == {"base": "already_paired"}
+
+
+async def test_options_flow_update_settings(hass: HomeAssistant) -> None:
+    """Test that options flow updates config entry data."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "webhook_id": "test_webhook_id",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "https://ha.local:8123",
+            "ha_grub_url": "http://10.0.0.1:8123",
+            "update_grub": True,
+            "turn_off_action": None,
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"
+
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "ha_daemon_url": "https://new-ha.local:8123",
+            "ha_grub_url": "http://10.0.0.2:8123",
+            "update_grub": False,
+            "turn_off_action": "script.shutdown_pc",
+        },
+    )
+    assert result2["type"] == "create_entry"
+    assert entry.data["ha_daemon_url"] == "https://new-ha.local:8123"
+    assert entry.data["ha_grub_url"] == "http://10.0.0.2:8123"
+    assert entry.data["update_grub"] is False
+    assert entry.data["turn_off_action"] == "script.shutdown_pc"
+
+
+async def test_options_flow_clear_turn_off_action(hass: HomeAssistant) -> None:
+    """Test that options flow can clear turn_off_action for non-daemonless entries."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "webhook_id": "test_webhook_id",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "https://ha.local:8123",
+            "ha_grub_url": "http://10.0.0.1:8123",
+            "update_grub": True,
+            "turn_off_action": "script.shutdown_pc",
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "ha_daemon_url": "https://ha.local:8123",
+            "ha_grub_url": "http://10.0.0.1:8123",
+            "update_grub": True,
+            # turn_off_action omitted -> should be cleared to None
+        },
+    )
+    assert result2["type"] == "create_entry"
+    assert entry.data["turn_off_action"] is None
+
+
+async def test_options_flow_daemonless_requires_turn_off_action(hass: HomeAssistant) -> None:
+    """Test that options flow rejects empty turn_off_action for daemonless entries."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "192.168.1.10",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "webhook_id": "test_webhook_id",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "https://ha.local:8123",
+            "ha_grub_url": "http://10.0.0.1:8123",
+            "update_grub": True,
+            "turn_off_action": "script.shutdown_pc",
+            "daemonless": True,
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"
+
+    # Try to submit without turn_off_action -> should show error
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "ha_daemon_url": "https://ha.local:8123",
+            "ha_grub_url": "http://10.0.0.1:8123",
+            "update_grub": True,
+            # turn_off_action omitted
+        },
+    )
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "init"
+    assert "turn_off_action" in result2["errors"]

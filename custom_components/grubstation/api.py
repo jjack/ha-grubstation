@@ -114,6 +114,17 @@ class GrubStationApiClient:
             headers=headers,
         )
 
+    async def async_shutdown(self) -> Any:
+        """Shut down the GrubStation device."""
+        headers = {}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        return await self._api_wrapper(
+            method="post",
+            url=f"http://{self._ip_address}:{self._port}/shutdown",
+            headers=headers,
+        )
+
     async def async_get_status(self) -> dict[str, Any]:
         """Check status of the GrubStation device."""
         headers = {}

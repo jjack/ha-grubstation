@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import secrets
+from typing import Any
 
 from aiohttp import web
 import voluptuous as vol
@@ -54,6 +55,14 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Blueprint."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Create the options flow."""
+        return GrubStationOptionsFlowHandler(config_entry)
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -119,7 +128,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
             self._ha_daemon_url = user_input.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = user_input.get(CONF_HA_GRUB_URL, ha_grub_url)
-            self._turn_off_action = None
+            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
 
             if not self._webhook_id:
                 self._webhook_id = webhook.async_generate_id()
@@ -181,6 +190,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
+                    vol.Optional(CONF_TURN_OFF_ACTION): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
                 }
             ),
             description_placeholders={
@@ -202,11 +214,14 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._port = user_input[CONF_PORT]
             self._mac = user_input.get(CONF_MAC)
             self._is_daemonless = user_input.get(CONF_DAEMONLESS, False)
+            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
 
             if not is_ip_address(self._ip_address):
                 _errors[CONF_IP_ADDRESS] = "invalid_ip"
             elif self._is_daemonless and not self._mac:
                 _errors[CONF_MAC] = "mac_required_for_daemonless"
+            elif self._is_daemonless and not self._turn_off_action:
+                _errors[CONF_TURN_OFF_ACTION] = "turn_off_action_required_for_daemonless"
             else:
                 if self._is_daemonless:
                     return await self.async_step_daemonless_onboarding()
@@ -252,6 +267,14 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_DAEMONLESS,
                         default=(user_input or {}).get(CONF_DAEMONLESS, DEFAULT_DAEMONLESS),
                     ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_TURN_OFF_ACTION,
+                        default=(user_input or {}).get(CONF_TURN_OFF_ACTION, vol.UNDEFINED),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        ),
+                    ),
                 },
             ),
             errors=_errors,
@@ -324,6 +347,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
                     vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                    ),
+                    vol.Optional(CONF_TURN_OFF_ACTION): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                     ),
                 }
@@ -515,3 +541,63 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 ha_grub_url = ha_grub_url.replace("https", "http", 1)
 
         return ha_daemon_url, ha_grub_url
+
+
+class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle GrubStation options."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self._config_entry = config_entry
+
+    async def async_step_init(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Manage the options."""
+        _errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Merge changes into the config entry data
+            new_data = dict(self._config_entry.data)
+            new_data[CONF_HA_DAEMON_URL] = user_input[CONF_HA_DAEMON_URL]
+            new_data[CONF_HA_GRUB_URL] = user_input[CONF_HA_GRUB_URL]
+            new_data[CONF_UPDATE_GRUB] = user_input[CONF_UPDATE_GRUB]
+            new_data[CONF_TURN_OFF_ACTION] = user_input.get(CONF_TURN_OFF_ACTION)
+
+            # Validate: daemonless hosts require a turn_off_action
+            if new_data.get(CONF_DAEMONLESS) and not new_data[CONF_TURN_OFF_ACTION]:
+                _errors[CONF_TURN_OFF_ACTION] = "turn_off_action_required_for_daemonless"
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data=new_data,
+                )
+                return self.async_create_entry(title="", data={})
+
+        current = self._config_entry.data
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_HA_DAEMON_URL,
+                        default=current.get(CONF_HA_DAEMON_URL, ""),
+                    ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
+                    vol.Required(
+                        CONF_HA_GRUB_URL,
+                        default=current.get(CONF_HA_GRUB_URL, ""),
+                    ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
+                    vol.Required(
+                        CONF_UPDATE_GRUB,
+                        default=current.get(CONF_UPDATE_GRUB, True),
+                    ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_TURN_OFF_ACTION,
+                        description={"suggested_value": current.get(CONF_TURN_OFF_ACTION)},
+                    ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
+                }
+            ),
+            errors=_errors,
+        )
