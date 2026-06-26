@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     from .data import GrubStationConfigEntry
 
 PLATFORMS: list[Platform] = [
-    Platform.SENSOR,
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
     Platform.SELECT,
