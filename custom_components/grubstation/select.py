@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .coordinator import BlueprintDataUpdateCoordinator
+    from .coordinator import GrubStationDataUpdateCoordinator
     from .data import GrubStationConfigEntry
 
 ENTITY_DESCRIPTIONS = (
@@ -45,7 +45,7 @@ class GrubStationSelect(GrubStationEntity, SelectEntity):
 
     def __init__(
         self,
-        coordinator: BlueprintDataUpdateCoordinator,
+        coordinator: GrubStationDataUpdateCoordinator,
         entity_description: SelectEntityDescription,
     ) -> None:
         """Initialize the select class."""

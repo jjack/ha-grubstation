@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from homeassistant.loader import Integration
 
     from .api import GrubStationApiClient
-    from .coordinator import BlueprintDataUpdateCoordinator
+    from .coordinator import GrubStationDataUpdateCoordinator
 
 
 type GrubStationConfigEntry = ConfigEntry[GrubStationData]
@@ -18,9 +18,9 @@ type GrubStationConfigEntry = ConfigEntry[GrubStationData]
 
 @dataclass
 class GrubStationData:
-    """Data for the Blueprint integration."""
+    """Data for the GrubStation integration."""
 
     client: GrubStationApiClient
-    coordinator: BlueprintDataUpdateCoordinator
+    coordinator: GrubStationDataUpdateCoordinator
     integration: Integration
     next_boot: str = "default"

@@ -19,7 +19,7 @@ from homeassistant.loader import async_get_loaded_integration
 
 from .api import GrubStationApiClient
 from .const import CONF_BOOT_OPTIONS, DOMAIN, LOGGER
-from .coordinator import BlueprintDataUpdateCoordinator
+from .coordinator import GrubStationDataUpdateCoordinator
 from .data import GrubStationData
 
 if TYPE_CHECKING:
@@ -120,7 +120,7 @@ async def async_setup_entry(
     entry: GrubStationConfigEntry,
 ) -> bool:
     """Set up this integration using UI."""
-    coordinator = BlueprintDataUpdateCoordinator(
+    coordinator = GrubStationDataUpdateCoordinator(
         hass=hass,
         logger=LOGGER,
         name=DOMAIN,

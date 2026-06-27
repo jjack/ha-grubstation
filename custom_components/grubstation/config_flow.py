@@ -1,4 +1,4 @@
-"""Adds config flow for Blueprint."""
+"""Adds config flow for GrubStation."""
 
 from __future__ import annotations
 
@@ -51,8 +51,8 @@ async def async_handle_webhook(
     return web.json_response({"status": "ok"})
 
 
-class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for Blueprint."""
+class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+    """Config flow for GrubStation."""
 
     VERSION = 1
 
