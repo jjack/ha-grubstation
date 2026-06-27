@@ -51,25 +51,12 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
         """Initialize the switch class."""
         super().__init__(coordinator)
         self.entity_description = entity_description
-        self._attr_is_on = False
-
-    @property
-    def should_poll(self) -> bool:
-        """Return True to enable polling."""
-        return True
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{entity_description.key}"
 
     @property
     def is_on(self) -> bool:
         """Return true if the switch is on."""
-        return self._attr_is_on
-
-    async def async_update(self) -> None:
-        """Update entity state by polling async_get_status."""
-        try:
-            status = await self.coordinator.config_entry.runtime_data.client.async_get_status()
-            self._attr_is_on = status.get("status") in ("running", "on")
-        except Exception:  # noqa: BLE001
-            self._attr_is_on = False
+        return self.coordinator.last_update_success
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch."""

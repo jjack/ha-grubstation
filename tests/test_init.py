@@ -7,7 +7,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.grubstation.const import DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers.entity_component import async_update_entity
 from homeassistant.setup import async_setup_component
 
 
@@ -180,9 +179,12 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
         binary_sensor_entity_id = next(e.entity_id for e in entities if e.domain == "binary_sensor")
         switch_entity_id = next(e.entity_id for e in entities if e.domain == "switch")
 
+        # Verify initial state after a successful pair/setup is "on"
+        assert hass.states.get(binary_sensor_entity_id).state == "on"
+        assert hass.states.get(switch_entity_id).state == "on"
+
         # Trigger update on both entities to pull the mocked status
-        await async_update_entity(hass, binary_sensor_entity_id)
-        await async_update_entity(hass, switch_entity_id)
+        await entry.runtime_data.coordinator.async_refresh()
 
         # 1. Daemon is "running": binary sensor should be "on" (connected) and switch should be "on"
         binary_sensor_state = hass.states.get(binary_sensor_entity_id)
@@ -193,7 +195,7 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
         assert switch_state is not None
         assert switch_state.state == "on"
 
-    # 2. Daemon is "stopped": binary sensor should be "off" (disconnected) and switch should be "off"
+    # 2. Daemon is unreachable: binary sensor should be "off" (disconnected) and switch should be "off"
     with (
         patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_get_data",
@@ -201,24 +203,18 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
         ),
         patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
-            return_value={
-                "os": "Linux",
-                "service_manager": "systemd",
-                "status": "stopped",
-                "version": "1.0.0",
-            },
+            side_effect=Exception("Connection failed"),
         ),
     ):
-        await async_update_entity(hass, binary_sensor_entity_id)
-        await async_update_entity(hass, switch_entity_id)
+        await entry.runtime_data.coordinator.async_refresh()
 
         binary_sensor_state = hass.states.get(binary_sensor_entity_id)
         assert binary_sensor_state is not None
-        assert binary_sensor_state.state == "off"
+        assert binary_sensor_state.state == "unavailable"
 
         switch_state = hass.states.get(switch_entity_id)
         assert switch_state is not None
-        assert switch_state.state == "off"
+        assert switch_state.state == "unavailable"
 
 
 async def test_switch_turn_off_default(hass: HomeAssistant) -> None:
