@@ -70,9 +70,9 @@ async def test_api_unpair() -> None:
         session=session,
     )
 
-    result = await client.async_unpair(api_key="test_key")
+    result = await client.async_unpair(daemon_token="test_token")
     assert result == {"status": "unpaired"}
-    assert last_headers.get("Authorization") == "Bearer test_key"
+    assert last_headers.get("Authorization") == "Bearer test_token"
 
 
 async def test_api_get_status() -> None:
@@ -106,14 +106,14 @@ async def test_api_get_status() -> None:
         session=session,
     )
 
-    result = await client.async_get_status(api_key="test_key")
+    result = await client.async_get_status(daemon_token="test_token")
     assert result == {
         "os": "Linux",
         "service_manager": "systemd",
         "status": "running",
         "version": "1.0.0",
     }
-    assert last_headers.get("Authorization") == "Bearer test_key"
+    assert last_headers.get("Authorization") == "Bearer test_token"
 
 
 async def test_api_pair_pin_required() -> None:

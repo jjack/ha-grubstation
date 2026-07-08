@@ -30,6 +30,7 @@ from .api import (
 from .const import (
     CONF_ADVANCED_OPTIONS,
     CONF_BOOT_OPTIONS,
+    CONF_DAEMON_TOKEN,
     CONF_DAEMONLESS,
     CONF_HA_DAEMON_URL,
     CONF_HA_GRUB_URL,
@@ -83,6 +84,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._temporary_webhook_registered: bool = False
         self._daemonless_paired: bool = False
         self._paired: str | None = None
+        self._daemon_token: str | None = None
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> config_entries.ConfigFlowResult:
         """Handle zeroconf discovery."""
@@ -174,6 +176,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 webhook.async_unregister(self.hass, self._webhook_id)
                 self._mac = response_data.get("mac", self._mac)
+                self._daemon_token = response_data.get("token")
                 self._boot_options = response_data.get("boot_options")
                 return self._async_create_grubstation_entry()
 
@@ -310,6 +313,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     webhook.async_unregister(self.hass, self._webhook_id)
                     self._mac = response_data.get("mac")
+                    self._daemon_token = response_data.get("token")
                     self._boot_options = response_data.get("boot_options")
 
                     if self._mac:
@@ -578,6 +582,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_UPDATE_GRUB: self._update_grub,
             CONF_TURN_OFF_ACTION: self._turn_off_action,
             CONF_HOSTNAME: self._hostname,
+            CONF_DAEMON_TOKEN: self._daemon_token,
         }
         if self._is_daemonless:
             title = f"GrubStation ({self._ip_address}) [Manual]"

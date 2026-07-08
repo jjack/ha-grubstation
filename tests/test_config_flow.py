@@ -34,6 +34,7 @@ async def test_config_flow(hass: HomeAssistant) -> None:
         return_value={
             "paired": True,
             "mac": "aa:bb:cc:dd:ee:ff",
+            "token": "test_daemon_token",
         },
     ) as mock_pair:
         result2 = await hass.config_entries.flow.async_configure(
@@ -51,6 +52,7 @@ async def test_config_flow(hass: HomeAssistant) -> None:
         assert result2["title"] == "GrubStation (127.0.0.1)"
         assert result2["data"]["update_grub"] is False
         assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
+        assert result2["data"]["daemon_token"] == "test_daemon_token"
         assert mock_pair.call_args.kwargs["pin"] == "123456"
         assert mock_pair.call_args.kwargs["update_grub"] is False
 
@@ -131,6 +133,7 @@ async def test_config_flow_pin_required_and_invalid_and_success(
             "paired": True,
             "mac": "aa:bb:cc:dd:ee:ff",
             "boot_options": ["linux"],
+            "token": "test_daemon_token",
         },
     ) as mock_pair:
         result3 = await hass.config_entries.flow.async_configure(
@@ -147,6 +150,7 @@ async def test_config_flow_pin_required_and_invalid_and_success(
     assert result3["title"] == "GrubStation (127.0.0.1)"
     assert result3["data"]["update_grub"] is True
     assert result3["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
+    assert result3["data"]["daemon_token"] == "test_daemon_token"
     assert mock_pair.call_args.kwargs["pin"] == "123456"
     assert mock_pair.call_args.kwargs["update_grub"] is True
 
@@ -293,7 +297,10 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
     # Submit pairing step, which generates credentials and calls pairing API
     with patch(
         "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        return_value={"paired": True},
+        return_value={
+            "paired": True,
+            "token": "test_daemon_token",
+        },
     ) as mock_pair:
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -313,6 +320,7 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         assert result2["data"]["ha_daemon_url"] == "https://my-ha.duckdns.org:8123"
         assert result2["data"]["ha_grub_url"] == "http://10.15.0.5:8123"
         assert result2["data"]["update_grub"] is True
+        assert result2["data"]["daemon_token"] == "test_daemon_token"
         assert mock_pair.call_args.kwargs["pin"] == "123456"
         assert mock_pair.call_args.kwargs["update_grub"] is True
 

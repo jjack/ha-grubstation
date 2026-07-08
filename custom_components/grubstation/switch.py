@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 import wakeonlan
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
-from homeassistant.const import CONF_API_KEY, CONF_MAC
+from homeassistant.const import CONF_MAC
 
-from .const import CONF_DAEMONLESS, CONF_TURN_OFF_ACTION
+from .const import CONF_DAEMON_TOKEN, CONF_DAEMONLESS, CONF_TURN_OFF_ACTION
 from .entity import GrubStationEntity
 
 if TYPE_CHECKING:
@@ -75,6 +75,6 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
             await self.hass.services.async_call(domain, service, {})
         elif not self.coordinator.config_entry.data.get(CONF_DAEMONLESS):
             await self.coordinator.config_entry.runtime_data.client.async_shutdown(
-                api_key=self.coordinator.config_entry.data[CONF_API_KEY]
+                daemon_token=self.coordinator.config_entry.data.get(CONF_DAEMON_TOKEN)
             )
         await self.coordinator.async_request_refresh()

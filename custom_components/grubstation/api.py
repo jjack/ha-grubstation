@@ -102,29 +102,31 @@ class GrubStationApiClient:
             headers=headers,
         )
 
-    async def async_unpair(self, api_key: str) -> Any:
+    async def async_unpair(self, daemon_token: str) -> Any:
         """Unpair the integration from the GrubStation device."""
-        headers = {"Authorization": f"Bearer {api_key}"}
+        headers = {"Authorization": f"Bearer {daemon_token}"}
         return await self._api_wrapper(
             method="post",
             url=f"http://{self._ip_address}:{self._port}/unpair",
             headers=headers,
         )
 
-    async def async_shutdown(self, api_key: str) -> Any:
+    async def async_shutdown(self, daemon_token: str) -> Any:
         """Shut down the GrubStation device."""
-        headers = {"Authorization": f"Bearer {api_key}"}
+        headers = {"Authorization": f"Bearer {daemon_token}"}
         return await self._api_wrapper(
             method="post",
             url=f"http://{self._ip_address}:{self._port}/shutdown",
             headers=headers,
         )
 
-    async def async_get_status(self, api_key: str) -> dict[str, Any]:
+    async def async_get_status(self, daemon_token: str) -> dict[str, Any]:
         """Check status of the GrubStation device."""
+        headers = {"Authorization": f"Bearer {daemon_token}"}
         return await self._api_wrapper(
             method="get",
             url=f"http://{self._ip_address}:{self._port}/status",
+            headers=headers,
         )
 
     async def _api_wrapper(

@@ -29,6 +29,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
             "update_grub": True,
             "boot_options": ["Linux"],
             "hostname": "test01",
+            "daemon_token": "test_daemon_token",
         },
     )
     entry.add_to_hass(hass)
@@ -132,9 +133,11 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         with patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_unpair",
             return_value={"status": "unpaired"},
-        ):
-            assert await hass.config_entries.async_unload(entry.entry_id)
+        ) as mock_unpair:
+            result = await hass.config_entries.async_remove(entry.entry_id)
             await hass.async_block_till_done()
+            assert result["require_restart"] is False
+            mock_unpair.assert_called_once_with(daemon_token="test_daemon_token")
 
         # The webhook should now be unregistered
         assert "test_permanent_webhook" not in hass.data.get("webhook", {}).get("handlers", {})
@@ -158,6 +161,7 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
             "update_grub": True,
             "boot_options": ["Linux"],
             "hostname": "wyse04",
+            "daemon_token": "test_daemon_token",
         },
     )
     entry.add_to_hass(hass)
@@ -238,6 +242,7 @@ async def test_switch_turn_off_default(hass: HomeAssistant) -> None:
             "run_update_grub": True,
             "boot_options": ["Linux"],
             "hostname": "wyse04",
+            "daemon_token": "test_daemon_token",
         },
     )
     entry.add_to_hass(hass)
@@ -267,7 +272,7 @@ async def test_switch_turn_off_default(hass: HomeAssistant) -> None:
 
         # Turn off the switch
         await hass.services.async_call("switch", "turn_off", {"entity_id": switch_entity_id}, blocking=True)
-        mock_shutdown.assert_called_once()
+        mock_shutdown.assert_called_once_with(daemon_token="test_daemon_token")
 
 
 async def test_switch_turn_off_custom_action(hass: HomeAssistant) -> None:
@@ -289,6 +294,7 @@ async def test_switch_turn_off_custom_action(hass: HomeAssistant) -> None:
             "boot_options": ["Linux"],
             "hostname": "wyse04",
             "turn_off_action": "script.my_custom_shutdown",
+            "daemon_token": "test_daemon_token",
         },
     )
     entry.add_to_hass(hass)
@@ -343,6 +349,7 @@ async def test_switch_turn_on(hass: HomeAssistant) -> None:
             "run_update_grub": True,
             "boot_options": ["Linux"],
             "hostname": "wyse04",
+            "daemon_token": "test_daemon_token",
         },
     )
     entry.add_to_hass(hass)
