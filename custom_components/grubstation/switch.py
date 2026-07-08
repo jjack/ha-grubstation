@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import wakeonlan
+
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
-from homeassistant.const import CONF_API_KEY
+from homeassistant.const import CONF_API_KEY, CONF_MAC
 
 from .const import CONF_DAEMONLESS, CONF_TURN_OFF_ACTION
 from .entity import GrubStationEntity
@@ -60,6 +62,9 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch."""
+        mac = self.coordinator.config_entry.data.get(CONF_MAC)
+        if mac:
+            await self.hass.async_add_executor_job(wakeonlan.wake, mac)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **_: Any) -> None:
