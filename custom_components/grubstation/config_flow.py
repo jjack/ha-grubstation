@@ -23,6 +23,7 @@ from homeassistant.loader import async_get_loaded_integration
 
 from .api import (
     GrubStationApiClient,
+    GrubStationApiClientError,
     GrubStationApiConflictError,
     GrubStationApiInvalidPinError,
     GrubStationApiPinRequiredError,
@@ -37,8 +38,10 @@ from .const import (
     CONF_HOSTNAME,
     CONF_TURN_OFF_ACTION,
     CONF_UPDATE_GRUB,
+    CONF_WOL_BROADCAST,
     DEFAULT_AGENT_PORT,
     DEFAULT_SERVER_PORT,
+    DEFAULT_WOL_BROADCAST,
     DOMAIN,
     LOGGER,
 )
@@ -745,11 +748,31 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
             new_data[CONF_HA_GRUB_URL] = user_input[CONF_HA_GRUB_URL]
             new_data[CONF_UPDATE_GRUB] = user_input[CONF_UPDATE_GRUB]
             new_data[CONF_TURN_OFF_ACTION] = user_input.get(CONF_TURN_OFF_ACTION)
+            new_data[CONF_WOL_BROADCAST] = user_input.get(CONF_WOL_BROADCAST) or DEFAULT_WOL_BROADCAST
 
             self.hass.config_entries.async_update_entry(
                 self._config_entry,
                 data=new_data,
             )
+
+            # Best-effort: push updated settings to the daemon.
+            # Failures are logged but do not block saving the options.
+            if not new_data.get(CONF_DAEMONLESS):
+                try:
+                    client = GrubStationApiClient(
+                        ip_address=new_data[CONF_IP_ADDRESS],
+                        port=new_data[CONF_PORT],
+                        session=async_create_clientsession(self.hass),
+                    )
+                    await client.async_update_config(
+                        new_data.get(CONF_DAEMON_TOKEN, ""),
+                        ha_daemon_url=new_data[CONF_HA_DAEMON_URL],
+                        ha_grub_url=new_data[CONF_HA_GRUB_URL],
+                        update_grub=new_data[CONF_UPDATE_GRUB],
+                    )
+                except GrubStationApiClientError as err:
+                    LOGGER.warning("Could not sync updated config to daemon: %s", err)
+
             return self.async_create_entry(title="", data={})
 
         current = self._config_entry.data
@@ -774,6 +797,10 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_TURN_OFF_ACTION,
                         description={"suggested_value": current.get(CONF_TURN_OFF_ACTION)},
                     ): selector.ActionSelector(),
+                    vol.Optional(
+                        CONF_WOL_BROADCAST,
+                        default=current.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST),
+                    ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
                 }
             ),
             errors=_errors,

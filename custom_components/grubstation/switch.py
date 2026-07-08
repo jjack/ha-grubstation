@@ -9,7 +9,7 @@ import wakeonlan
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.const import CONF_MAC
 
-from .const import CONF_DAEMON_TOKEN, CONF_DAEMONLESS, CONF_TURN_OFF_ACTION
+from .const import CONF_DAEMON_TOKEN, CONF_DAEMONLESS, CONF_TURN_OFF_ACTION, CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST
 from .entity import GrubStationEntity
 
 if TYPE_CHECKING:
@@ -64,7 +64,9 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
         """Turn on the switch."""
         mac = self.coordinator.config_entry.data.get(CONF_MAC)
         if mac:
-            await self.hass.async_add_executor_job(wakeonlan.wake, mac)
+            broadcast = self.coordinator.config_entry.data.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
+            wake_method = getattr(wakeonlan, "wake", None) or wakeonlan.send_magic_packet
+            await self.hass.async_add_executor_job(wake_method, mac, broadcast)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **_: Any) -> None:

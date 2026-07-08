@@ -4,7 +4,11 @@ from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.grubstation.api import GrubStationApiConflictError, GrubStationApiInvalidPinError
+from custom_components.grubstation.api import (
+    GrubStationApiClientCommunicationError,
+    GrubStationApiConflictError,
+    GrubStationApiInvalidPinError,
+)
 from custom_components.grubstation.const import CONF_ADVANCED_OPTIONS, DOMAIN
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -431,20 +435,24 @@ async def test_options_flow_update_settings(hass: HomeAssistant) -> None:
     assert result["type"] == "form"
     assert result["step_id"] == "init"
 
-    result2 = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        {
-            "ha_daemon_url": "https://new-ha.local:8123",
-            "ha_grub_url": "http://10.0.0.2:8123",
-            "update_grub": False,
-            "turn_off_action": "script.shutdown_pc",
-        },
-    )
+    with patch(
+        "custom_components.grubstation.config_flow.GrubStationApiClient.async_update_config",
+    ) as mock_update:
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                "ha_daemon_url": "https://new-ha.local:8123",
+                "ha_grub_url": "http://10.0.0.2:8123",
+                "update_grub": False,
+                "turn_off_action": "script.shutdown_pc",
+            },
+        )
     assert result2["type"] == "create_entry"
     assert entry.data["ha_daemon_url"] == "https://new-ha.local:8123"
     assert entry.data["ha_grub_url"] == "http://10.0.0.2:8123"
     assert entry.data["update_grub"] is False
     assert entry.data["turn_off_action"] == "script.shutdown_pc"
+    mock_update.assert_awaited_once()
 
 
 async def test_options_flow_clear_turn_off_action(hass: HomeAssistant) -> None:
@@ -478,6 +486,47 @@ async def test_options_flow_clear_turn_off_action(hass: HomeAssistant) -> None:
     )
     assert result2["type"] == "create_entry"
     assert entry.data["turn_off_action"] is None
+
+
+async def test_options_flow_daemon_sync_failure(hass: HomeAssistant) -> None:
+    """Test that a daemon comms error during options save does not block the save."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "webhook_id": "test_webhook_id",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "https://ha.local:8123",
+            "ha_grub_url": "http://10.0.0.1:8123",
+            "update_grub": True,
+            "turn_off_action": None,
+            "daemon_token": "test_token",
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    with patch(
+        "custom_components.grubstation.config_flow.GrubStationApiClient.async_update_config",
+        side_effect=GrubStationApiClientCommunicationError("connection refused"),
+    ):
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                "ha_daemon_url": "https://new-ha.local:8123",
+                "ha_grub_url": "http://10.0.0.2:8123",
+                "update_grub": False,
+            },
+        )
+
+    # Save should still succeed even though the daemon was unreachable
+    assert result2["type"] == "create_entry"
+    assert entry.data["ha_daemon_url"] == "https://new-ha.local:8123"
 
 
 async def test_reauth_flow_success(hass: HomeAssistant) -> None:

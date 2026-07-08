@@ -69,10 +69,16 @@
                     }
                 }
             },
-
             "daemonless_onboarding": {
                 "title": "Daemonless Onboarding",
                 "description": "Run the following command on your remote machine to pair it with Home Assistant. Once the command completes successfully, click Submit.\n\nCommand:\n```bash\n{pairing_command}\n```"
+            },
+            "reauth_confirm": {
+                "title": "Re-authenticate GrubStation",
+                "description": "The GrubStation daemon on **{hostname}** is no longer paired with Home Assistant. Enter its pairing PIN to re-establish the connection.",
+                "data": {
+                    "pin": "Pairing PIN"
+                }
             },
             "zeroconf_confirm": {
                 "title": "Pair GrubStation",
@@ -117,15 +123,6 @@
         "abort": {
             "already_configured": "This entry is already configured.",
             "reauth_successful": "Re-authentication was successful."
-        },
-        "step": {
-            "reauth_confirm": {
-                "title": "Re-authenticate GrubStation",
-                "description": "The GrubStation daemon on **{hostname}** is no longer paired with Home Assistant. Enter its pairing PIN to re-establish the connection.",
-                "data": {
-                    "pin": "Pairing PIN"
-                }
-            }
         }
     },
     "options": {
@@ -137,13 +134,15 @@
                     "ha_daemon_url": "Home Assistant Daemon URL (HTTPS allowed)",
                     "ha_grub_url": "GRUB Boot URL (Must be HTTP)",
                     "update_grub": "Apply GRUB configuration changes and run `update-grub` automatically",
-                    "turn_off_action": "Optional Turn Off Action (Grubstation Daemon is the default)"
+                    "turn_off_action": "Optional Turn Off Action (Grubstation Daemon is the default)",
+                    "wol_broadcast": "Wake-on-LAN Broadcast Address"
                 },
                 "data_description": {
                     "ha_daemon_url": "The URL GrubStation uses to communicate with Home Assistant. This can be an HTTPS address.",
                     "ha_grub_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
                     "update_grub": "If you choose not to run `update-grub` now, you can manually run it later.",
-                    "turn_off_action": "Optional custom action (like a script or service call) to run when turning off this host instead of the default daemon agent shutdown command. Note: A custom action is required for daemonless hosts."
+                    "turn_off_action": "Optional custom action (like a script or service call) to run when turning off this host instead of the default daemon agent shutdown command. Note: A custom action is required for daemonless hosts.",
+                    "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`. Change this if your machine is on a different subnet (e.g. `192.168.1.255`)."
                 }
             }
         },

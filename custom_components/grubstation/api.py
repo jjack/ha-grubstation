@@ -111,6 +111,31 @@ class GrubStationApiClient:
             headers=headers,
         )
 
+    async def async_update_config(
+        self,
+        daemon_token: str,
+        *,
+        ha_daemon_url: str,
+        ha_grub_url: str,
+        update_grub: bool,
+    ) -> Any:
+        """Push updated configuration settings to the GrubStation device."""
+        if not daemon_token:
+            raise GrubStationApiClientAuthenticationError("Daemon token is required to update config")
+
+        headers = {"Authorization": f"Bearer {daemon_token}"}
+        payload = {
+            "ha_daemon_url": ha_daemon_url,
+            "ha_grub_url": ha_grub_url,
+            "update_grub": update_grub,
+        }
+        return await self._api_wrapper(
+            method="post",
+            url=f"http://{self._ip_address}:{self._port}/update",
+            data=payload,
+            headers=headers,
+        )
+
     async def async_shutdown(self, daemon_token: str) -> Any:
         """Shut down the GrubStation device."""
         headers = {"Authorization": f"Bearer {daemon_token}"}

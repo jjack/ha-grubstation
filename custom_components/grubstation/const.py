@@ -21,8 +21,10 @@ CONF_HOSTNAME: Final[str] = "hostname"
 CONF_TURN_OFF_ACTION: Final[str] = "turn_off_action"
 CONF_UPDATE_GRUB: Final[str] = "update_grub"
 CONF_DAEMON_TOKEN: Final[str] = "daemon_token"
+CONF_WOL_BROADCAST: Final[str] = "wol_broadcast"
 
 DEFAULT_AGENT_PORT: Final[int] = 8081
 DEFAULT_BOOT_OPTION: Final[str] = "default"
 DEFAULT_DAEMONLESS: Final[bool] = False
 DEFAULT_SERVER_PORT: Final[int] = 8123
+DEFAULT_WOL_BROADCAST: Final[str] = "255.255.255.255"

@@ -376,7 +376,7 @@ async def test_switch_turn_on(hass: HomeAssistant) -> None:
 
         # Turn on the switch
         await hass.services.async_call("switch", "turn_on", {"entity_id": switch_entity_id}, blocking=True)
-        mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF")
+        mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF", "255.255.255.255")
 
 
 async def test_select_restore_state(hass: HomeAssistant) -> None:
