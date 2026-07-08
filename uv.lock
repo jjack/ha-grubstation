@@ -1164,6 +1164,7 @@ hass = [
     { name = "isal" },
     { name = "pymicro-vad" },
     { name = "pyturbojpeg" },
+    { name = "wakeonlan" },
     { name = "zlib-ng" },
 ]
 
@@ -1190,6 +1191,7 @@ hass = [
     { name = "isal", specifier = ">=1.8.0" },
     { name = "pymicro-vad", specifier = "==1.0.1" },
     { name = "pyturbojpeg", specifier = "==1.8.3" },
+    { name = "wakeonlan", specifier = ">=1.1.6" },
     { name = "zlib-ng", specifier = "==1.0.0" },
 ]
 
@@ -2901,6 +2903,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/53/70/03a9b61324e1bb8b16682455b8b953bccd1001a28e43478c86f539e26285/voluptuous_serialize-2.7.0.tar.gz", hash = "sha256:d0da959f2fd93c8f1eb779c5d116231940493b51020c2c1026bab76eb56cd09e", size = 9202, upload-time = "2025-08-17T10:43:04.31Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f7/41/d536d9cf39821c35cc13aff403728e60e32b2fd711c240b6b9980af1c03f/voluptuous_serialize-2.7.0-py3-none-any.whl", hash = "sha256:ee3ebecace6136f38d0bf8c20ee97155db2486c6b2d0795563fafd04a519e76f", size = 7850, upload-time = "2025-08-17T10:43:03.498Z" },
+]
+
+[[package]]
+name = "wakeonlan"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8f/16/69e4cdcce1be240667dfa2607f12e00d1c79e4606656327c4f1fb88fea40/wakeonlan-4.0.0.tar.gz", hash = "sha256:1cb30c4ae60f85ef289f4f7d4f703382ed19ba84103206dc5e2b1e51bec9f456", size = 5079, upload-time = "2026-06-28T09:23:15.711Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/80/ecebf7b1b32ebe4a10d72a09e21c4c76a2460fac159752ec9ab88508b7d0/wakeonlan-4.0.0-py3-none-any.whl", hash = "sha256:82c50fe0c8dbc4848b8398f48fd2d2ed5d4af363f3006279372d76513ef84505", size = 5882, upload-time = "2026-06-28T09:23:14.577Z" },
 ]
 
 [[package]]

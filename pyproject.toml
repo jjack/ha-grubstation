@@ -28,6 +28,7 @@ hass = [
     "isal>=1.8.0",
     "pymicro-vad==1.0.1",
     "pyturbojpeg==1.8.3",
+    "wakeonlan>=1.1.6",
     "zlib-ng==1.0.0",
 ]
 
