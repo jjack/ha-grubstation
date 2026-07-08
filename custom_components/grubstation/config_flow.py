@@ -225,6 +225,15 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             elif self._is_daemonless and not self._turn_off_action:
                 _errors[CONF_TURN_OFF_ACTION] = "turn_off_action_required_for_daemonless"
             else:
+                if self._mac:
+                    normalized_mac = self._mac.lower()
+                    await self.async_set_unique_id(normalized_mac)
+                    self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
+                    self._mac = normalized_mac
+                else:
+                    await self.async_set_unique_id(self._ip_address)
+                    self._abort_if_unique_id_configured()
+
                 if self._is_daemonless:
                     return await self.async_step_daemonless_onboarding()
                 return await self.async_step_pairing()
