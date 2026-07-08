@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 from aiohttp import web
 
 from homeassistant.components import webhook
-from homeassistant.components.http import HomeAssistantView
 from homeassistant.const import CONF_WEBHOOK_ID, Platform
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
@@ -21,6 +20,7 @@ from .api import GrubStationApiClient
 from .const import CONF_BOOT_OPTIONS, DOMAIN, LOGGER
 from .coordinator import GrubStationDataUpdateCoordinator
 from .data import GrubStationData
+from .views import GrubStationConfigView
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -70,50 +70,6 @@ async def async_handle_webhook(
     return web.json_response({"status": "ok"})
 
 
-class GrubStationPrebootView(HomeAssistantView):
-    """View to handle GRUB pre-boot queries."""
-
-    url = "/api/grubstation/{mac_address}"
-    name = "api:grubstation:preboot"
-    requires_auth = False
-
-    async def get(self, request: web.Request, mac_address: str) -> web.Response:
-        """Handle GRUB pre-boot query."""
-        token = request.query.get("token")
-        if not token:
-            return web.Response(text="Unauthorized", status=401)
-
-        norm_mac = mac_address.lower().replace(":", "").replace("-", "")
-
-        # Find the config entry matching this MAC address
-        hass = request.app["hass"]
-        matching_entry = None
-        for entry in hass.config_entries.async_entries(DOMAIN):
-            entry_mac = entry.data.get("mac")
-            if entry_mac:
-                entry_norm_mac = entry_mac.lower().replace(":", "").replace("-", "")
-                if entry_norm_mac == norm_mac:
-                    matching_entry = entry
-                    break
-
-        if not matching_entry:
-            return web.Response(text="Not Found", status=404)
-
-        if matching_entry.data.get(CONF_WEBHOOK_ID) != token:
-            return web.Response(text="Unauthorized", status=401)
-
-        next_boot = "default"
-        if hasattr(matching_entry, "runtime_data"):
-            next_boot = matching_entry.runtime_data.next_boot or "default"
-            matching_entry.runtime_data.next_boot = "default"
-            # Trigger updates
-            matching_entry.runtime_data.coordinator.async_set_updated_data(
-                matching_entry.runtime_data.coordinator.data or {}
-            )
-
-        return web.Response(text=next_boot)
-
-
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -137,7 +93,7 @@ async def async_setup_entry(
 
     # Register view if not already registered
     if "view_registered" not in hass.data.setdefault(DOMAIN, {}):
-        hass.http.register_view(GrubStationPrebootView())
+        hass.http.register_view(GrubStationConfigView())
         hass.data[DOMAIN]["view_registered"] = True
 
     # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities

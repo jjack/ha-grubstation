@@ -60,9 +60,11 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         # Verify that pre-boot view is registered and works
         client = await hass_client()
 
-        # 1. Test GRUB pre-boot query view (invalid / unauthorized)
+        # 1. Test GRUB pre-boot query view (no token is allowed, invalid token returns 401)
         resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF")
-        assert resp.status == 401  # No token
+        assert resp.status == 200
+        text = await resp.text()
+        assert text == 'set-default="default"'
 
         resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF?token=invalid_token")
         assert resp.status == 401  # Invalid token
@@ -70,28 +72,34 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         resp = await client.get("/api/grubstation/00:00:00:00:00:00?token=test_permanent_webhook")
         assert resp.status == 404  # Unknown MAC
 
-        # 2. Test pre-boot query success with default choice
+        # 2. Test pre-boot query success with default choice and valid token
         resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF?token=test_permanent_webhook")
         assert resp.status == 200
         text = await resp.text()
-        assert text == "default"
+        assert text == 'set-default="default"'
 
         # Set next boot override
         entry.runtime_data.next_boot = "Windows"
 
-        # 3. Test pre-boot query success with override choice (which should consume it)
+        # Query without token should return "Windows" but NOT consume it
+        resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF")
+        assert resp.status == 200
+        text = await resp.text()
+        assert text == 'set-default="Windows"'
+
+        # 3. Test pre-boot query success with override choice and valid token (which should consume it)
         resp = await client.get(
             "/api/grubstation/AA-BB-CC-DD-EE-FF?token=test_permanent_webhook"
         )  # also test dash format mac
         assert resp.status == 200
         text = await resp.text()
-        assert text == "Windows"
+        assert text == 'set-default="Windows"'
 
         # Subsequent request should return "default" because the override was consumed
         resp = await client.get("/api/grubstation/aabbccddeeff?token=test_permanent_webhook")  # test no separator mac
         assert resp.status == 200
         text = await resp.text()
-        assert text == "default"
+        assert text == 'set-default="default"'
 
         # 4. Test permanent Webhook update of boot options
         resp = await client.post(

@@ -21,3 +21,9 @@ def format_display_name(host: str, hostname: str | None, fallback_prefix: str | 
         return f"{fallback_prefix} ({host})" if fallback_prefix else host
 
     return f"{hostname} ({host})"
+
+
+def normalize_mac(mac: str) -> str:
+    """Normalize MAC address to standard format (lowercase with colons)."""
+    cleaned = mac.lower().replace(":", "").replace("-", "")
+    return ":".join(cleaned[i : i + 2] for i in range(0, len(cleaned), 2))
