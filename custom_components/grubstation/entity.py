@@ -18,7 +18,6 @@ class GrubStationEntity(CoordinatorEntity[GrubStationDataUpdateCoordinator]):
     def __init__(self, coordinator: GrubStationDataUpdateCoordinator) -> None:
         """Initialize."""
         super().__init__(coordinator)
-        self._attr_unique_id = coordinator.config_entry.entry_id
 
     @property
     def device_info(self) -> DeviceInfo:
