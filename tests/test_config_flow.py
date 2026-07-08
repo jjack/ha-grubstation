@@ -478,3 +478,94 @@ async def test_options_flow_clear_turn_off_action(hass: HomeAssistant) -> None:
     )
     assert result2["type"] == "create_entry"
     assert entry.data["turn_off_action"] is None
+
+
+async def test_reauth_flow_success(hass: HomeAssistant) -> None:
+    """Test that the reauth flow updates the daemon_token on success."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "webhook_id": "original_webhook_id",
+            "api_key": "original_api_key",
+            "ha_daemon_url": "http://127.0.0.1:8123",
+            "ha_grub_url": "http://127.0.0.1:8123",
+            "run_update_grub": True,
+            "hostname": "grubstation.local",
+            "daemon_token": "old_daemon_token",
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "reauth_confirm"
+
+    with patch(
+        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
+        return_value={"paired": True, "token": "new_daemon_token"},
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"pin": "654321"},
+        )
+
+    assert result2["type"] == "abort"
+    assert result2["reason"] == "reauth_successful"
+    assert entry.data["daemon_token"] == "new_daemon_token"
+
+
+async def test_reauth_flow_invalid_pin(hass: HomeAssistant) -> None:
+    """Test that the reauth flow shows an error on an invalid PIN."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "webhook_id": "original_webhook_id",
+            "api_key": "original_api_key",
+            "ha_daemon_url": "http://127.0.0.1:8123",
+            "ha_grub_url": "http://127.0.0.1:8123",
+            "run_update_grub": True,
+            "hostname": "grubstation.local",
+            "daemon_token": "old_daemon_token",
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "reauth_confirm"
+
+    with patch(
+        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
+        side_effect=GrubStationApiInvalidPinError("wrong pin"),
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"pin": "000000"},
+        )
+
+    assert result2["type"] == "form"
+    assert result2["errors"] == {"base": "invalid_pin"}
+    # Token should be unchanged
+    assert entry.data["daemon_token"] == "old_daemon_token"

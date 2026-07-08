@@ -115,7 +115,17 @@
             "invalid_ip": "Please enter a valid IP address."
         },
         "abort": {
-            "already_configured": "This entry is already configured."
+            "already_configured": "This entry is already configured.",
+            "reauth_successful": "Re-authentication was successful."
+        },
+        "step": {
+            "reauth_confirm": {
+                "title": "Re-authenticate GrubStation",
+                "description": "The GrubStation daemon on **{hostname}** is no longer paired with Home Assistant. Enter its pairing PIN to re-establish the connection.",
+                "data": {
+                    "pin": "Pairing PIN"
+                }
+            }
         }
     },
     "options": {

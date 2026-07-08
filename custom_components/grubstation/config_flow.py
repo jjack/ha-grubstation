@@ -649,6 +649,80 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         return ha_daemon_url, grub_url
 
+    async def async_step_reauth(
+        self,
+        entry_data: dict[str, Any],
+    ) -> config_entries.ConfigFlowResult:
+        """Handle initiation of re-authentication."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Prompt the user to re-enter their pairing PIN and re-pair the device."""
+        reauth_entry = self._get_reauth_entry()
+        _errors: dict[str, str] = {}
+
+        if user_input is not None:
+            pin = user_input[CONF_PIN]
+            temp_webhook_id = webhook.async_generate_id()
+
+            try:
+                webhook.async_register(
+                    self.hass,
+                    DOMAIN,
+                    "GrubStation Webhook (Reauth)",
+                    temp_webhook_id,
+                    async_handle_webhook,
+                )
+                client = GrubStationApiClient(
+                    ip_address=reauth_entry.data[CONF_IP_ADDRESS],
+                    port=reauth_entry.data[CONF_PORT],
+                    session=async_create_clientsession(self.hass),
+                )
+                response_data = await client.async_pair(
+                    pin=pin,
+                    webhook_id=reauth_entry.data[CONF_WEBHOOK_ID],
+                    api_key=reauth_entry.data[CONF_API_KEY],
+                    ha_daemon_url=reauth_entry.data[CONF_HA_DAEMON_URL],
+                    ha_grub_url=reauth_entry.data[CONF_HA_GRUB_URL],
+                    update_grub=reauth_entry.data.get(CONF_UPDATE_GRUB, True),
+                )
+            except GrubStationApiInvalidPinError, GrubStationApiPinRequiredError:
+                _errors["base"] = "invalid_pin"
+                webhook.async_unregister(self.hass, temp_webhook_id)
+            except Exception as exception:  # noqa: BLE001
+                LOGGER.exception(exception)
+                _errors["base"] = "connection"
+                webhook.async_unregister(self.hass, temp_webhook_id)
+            else:
+                webhook.async_unregister(self.hass, temp_webhook_id)
+                new_token = response_data.get("token")
+                self.hass.config_entries.async_update_entry(
+                    reauth_entry,
+                    data={**reauth_entry.data, CONF_DAEMON_TOKEN: new_token},
+                )
+                await self.hass.config_entries.async_reload(reauth_entry.entry_id)
+                return self.async_abort(reason="reauth_successful")
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            description_placeholders={
+                "hostname": reauth_entry.data.get(CONF_HOSTNAME) or reauth_entry.data.get(CONF_IP_ADDRESS, ""),
+            },
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PIN): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        )
+                    ),
+                }
+            ),
+            errors=_errors,
+        )
+
 
 class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle GrubStation options."""

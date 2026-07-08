@@ -123,11 +123,14 @@ class GrubStationApiClient:
     async def async_get_status(self, daemon_token: str) -> dict[str, Any]:
         """Check status of the GrubStation device."""
         headers = {"Authorization": f"Bearer {daemon_token}"}
-        return await self._api_wrapper(
+        status = await self._api_wrapper(
             method="get",
             url=f"http://{self._ip_address}:{self._port}/status",
             headers=headers,
         )
+        if status and (not status.get("paired", True) or not status.get("token_configured", True)):
+            raise GrubStationApiClientAuthenticationError("Device is no longer paired")
+        return status
 
     async def _api_wrapper(
         self,
