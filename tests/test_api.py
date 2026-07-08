@@ -1,5 +1,6 @@
 """Tests for GrubStation API client."""
 
+from http import HTTPStatus
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -15,7 +16,7 @@ from custom_components.grubstation.api import (
 async def test_api_pair() -> None:
     """Test pairing API call."""
     response = MagicMock()
-    response.status = 200
+    response.status = HTTPStatus.OK
 
     async def mock_json() -> dict[str, bool]:
         return {"paired": True}
@@ -47,7 +48,7 @@ async def test_api_pair() -> None:
 async def test_api_unpair() -> None:
     """Test unpairing API call."""
     response = MagicMock()
-    response.status = 200
+    response.status = HTTPStatus.OK
 
     async def mock_json() -> dict[str, str]:
         return {"status": "unpaired"}
@@ -78,7 +79,7 @@ async def test_api_unpair() -> None:
 async def test_api_get_status() -> None:
     """Test get status API call."""
     response = MagicMock()
-    response.status = 200
+    response.status = HTTPStatus.OK
 
     async def mock_json() -> dict[str, str]:
         return {
@@ -119,7 +120,7 @@ async def test_api_get_status() -> None:
 async def test_api_pair_pin_required() -> None:
     """Test pairing API call when PIN code is required."""
     response = MagicMock()
-    response.status = 401
+    response.status = HTTPStatus.UNAUTHORIZED
 
     async def mock_json() -> dict[str, str]:
         return {"error": "pin_required"}
@@ -151,7 +152,7 @@ async def test_api_pair_pin_required() -> None:
 async def test_api_pair_invalid_pin() -> None:
     """Test pairing API call when entered PIN code is invalid."""
     response = MagicMock()
-    response.status = 401
+    response.status = HTTPStatus.UNAUTHORIZED
 
     async def mock_json() -> dict[str, str]:
         return {"error": "invalid_pin"}
@@ -184,7 +185,7 @@ async def test_api_pair_invalid_pin() -> None:
 async def test_api_pair_with_pin_success() -> None:
     """Test pairing API call succeeds with correct PIN."""
     response = MagicMock()
-    response.status = 200
+    response.status = HTTPStatus.OK
 
     async def mock_json() -> dict[str, Any]:
         return {

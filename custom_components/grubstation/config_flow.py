@@ -29,6 +29,7 @@ from .api import (
     GrubStationApiPinRequiredError,
 )
 from .const import (
+    API_KEY_LENGTH,
     CONF_ADVANCED_OPTIONS,
     CONF_BOOT_OPTIONS,
     CONF_DAEMON_TOKEN,
@@ -138,7 +139,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if not self._webhook_id:
                 self._webhook_id = webhook.async_generate_id()
             if not self._api_key:
-                self._api_key = secrets.token_hex(32)
+                self._api_key = secrets.token_hex(API_KEY_LENGTH)
 
             try:
                 webhook.async_register(
@@ -285,7 +286,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 if not self._webhook_id:
                     self._webhook_id = webhook.async_generate_id()
                 if not self._api_key:
-                    self._api_key = secrets.token_hex(32)
+                    self._api_key = secrets.token_hex(API_KEY_LENGTH)
 
                 try:
                     webhook.async_register(
@@ -515,7 +516,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if not self._webhook_id:
             self._webhook_id = webhook.async_generate_id()
         if not self._api_key:
-            self._api_key = secrets.token_hex(32)
+            self._api_key = secrets.token_hex(API_KEY_LENGTH)
 
         ha_daemon_url, ha_grub_url = await self._async_generate_urls()
 

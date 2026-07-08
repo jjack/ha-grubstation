@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from http import HTTPStatus
 import logging
 
 from aiohttp import web
@@ -38,12 +39,12 @@ class GrubStationConfigView(HomeAssistantView):
                     break
 
         if not matching_entry:
-            return web.Response(text="Not Found", status=404)
+            return web.Response(text="Not Found", status=HTTPStatus.NOT_FOUND)
 
         token = request.query.get("token")
         if token:
             if matching_entry.data.get(CONF_WEBHOOK_ID) != token:
-                return web.Response(text="Unauthorized", status=401)
+                return web.Response(text="Unauthorized", status=HTTPStatus.UNAUTHORIZED)
 
         next_boot = DEFAULT_BOOT_OPTION
         if hasattr(matching_entry, "runtime_data"):

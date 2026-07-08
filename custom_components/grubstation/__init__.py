@@ -7,6 +7,7 @@ https://github.com/jjack/grubstation
 from __future__ import annotations
 
 from datetime import timedelta
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from aiohttp import web
@@ -43,7 +44,7 @@ async def async_handle_webhook(
     try:
         payload = await request.json()
     except Exception:  # noqa: BLE001
-        return web.json_response({"status": "error", "message": "Invalid JSON"}, status=400)
+        return web.json_response({"status": "error", "message": "Invalid JSON"}, status=HTTPStatus.BAD_REQUEST)
 
     # Find the config entry matching this webhook_id
     entry = None
@@ -53,7 +54,7 @@ async def async_handle_webhook(
             break
 
     if not entry:
-        return web.json_response({"status": "error", "message": "Entry not found"}, status=404)
+        return web.json_response({"status": "error", "message": "Entry not found"}, status=HTTPStatus.NOT_FOUND)
 
     # Process payload
     # 1. Update boot options if provided

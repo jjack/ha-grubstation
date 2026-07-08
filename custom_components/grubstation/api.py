@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+from http import HTTPStatus
 import socket
 from typing import Any
 
 import aiohttp
+
+from custom_components.grubstation.const import API_TIMEOUT_SECONDS
 
 
 class GrubStationApiClientError(Exception):
@@ -39,9 +42,9 @@ class GrubStationApiConflictError(GrubStationApiClientError):
 
 async def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
     """Verify that the response is valid."""
-    if response.status == 409:
+    if response.status == HTTPStatus.CONFLICT:
         raise GrubStationApiConflictError("Conflict: Host already paired")
-    if response.status in (401, 403):
+    if response.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
         try:
             body = await response.json()
             if isinstance(body, dict):
@@ -166,7 +169,7 @@ class GrubStationApiClient:
     ) -> Any:
         """Get information from the API."""
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(API_TIMEOUT_SECONDS):
                 response = await self._session.request(
                     method=method,
                     url=url,

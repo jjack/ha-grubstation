@@ -1,5 +1,6 @@
 """Tests for GrubStation config flow."""
 
+from http import HTTPStatus
 from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -248,7 +249,7 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
             "boot_options": ["Ubuntu", "Windows Boot Manager"],
         },
     )
-    assert resp.status == 200
+    assert resp.status == HTTPStatus.OK
     data = await resp.json()
     assert data == {"status": "ok"}
 
