@@ -126,7 +126,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             pin = user_input[CONF_PIN]
             advanced = user_input.get("advanced_options", {})
-            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
+            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
             self._turn_off_action = advanced.get(CONF_TURN_OFF_ACTION)
@@ -624,7 +624,7 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_HA_GRUB_URL,
                         default=current.get(CONF_HA_GRUB_URL, ""),
                     ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
-                    vol.Optional(
+                    vol.Required(
                         CONF_UPDATE_GRUB,
                         default=current.get(CONF_UPDATE_GRUB, True),
                     ): selector.BooleanSelector(),

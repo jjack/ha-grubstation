@@ -318,8 +318,8 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
             result["flow_id"],
             {
                 "pin": "123456",
+                "update_grub": True,
                 "advanced_options": {
-                    "update_grub": True,
                     "ha_daemon_url": "https://my-ha.duckdns.org:8123",
                     "ha_grub_url": "http://10.15.0.5:8123",
                 },
@@ -410,9 +410,8 @@ async def test_config_flow_zeroconf_already_paired(hass: HomeAssistant) -> None:
             result["flow_id"],
             {
                 "pin": "123456",
-                "advanced_options": {
-                    "update_grub": True,
-                },
+                "update_grub": True,
+                "advanced_options": {},
             },
         )
         assert result2["type"] == "form"
