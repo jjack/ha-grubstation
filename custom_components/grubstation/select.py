@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CONF_BOOT_OPTIONS, DEFAULT_BOOT_OPTION
 from .entity import GrubStationEntity
@@ -39,7 +40,7 @@ async def async_setup_entry(
     )
 
 
-class GrubStationSelect(GrubStationEntity, SelectEntity):
+class GrubStationSelect(GrubStationEntity, RestoreEntity, SelectEntity):
     """grubstation select class."""
 
     def __init__(
@@ -70,3 +71,11 @@ class GrubStationSelect(GrubStationEntity, SelectEntity):
         if hasattr(self.coordinator.config_entry, "runtime_data"):
             self.coordinator.config_entry.runtime_data.next_boot = option
             self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """Restore last state."""
+        await super().async_added_to_hass()
+        if (last_state := await self.async_get_last_state()) is not None:
+            if last_state.state in self.options:
+                if hasattr(self.coordinator.config_entry, "runtime_data"):
+                    self.coordinator.config_entry.runtime_data.next_boot = last_state.state

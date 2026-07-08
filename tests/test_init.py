@@ -2,10 +2,10 @@
 
 from unittest.mock import patch
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, mock_restore_cache
 
 from custom_components.grubstation.const import DOMAIN
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.setup import async_setup_component
 
@@ -217,11 +217,11 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
 
         binary_sensor_state = hass.states.get(binary_sensor_entity_id)
         assert binary_sensor_state is not None
-        assert binary_sensor_state.state == "unavailable"
+        assert binary_sensor_state.state == "off"
 
         switch_state = hass.states.get(switch_entity_id)
         assert switch_state is not None
-        assert switch_state.state == "unavailable"
+        assert switch_state.state == "off"
 
 
 async def test_switch_turn_off_default(hass: HomeAssistant) -> None:
@@ -377,3 +377,45 @@ async def test_switch_turn_on(hass: HomeAssistant) -> None:
         # Turn on the switch
         await hass.services.async_call("switch", "turn_on", {"entity_id": switch_entity_id}, blocking=True)
         mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF")
+
+
+async def test_select_restore_state(hass: HomeAssistant) -> None:
+    """Test that next boot option select restores its state from last state."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    # Mock the restore state helper with "Linux"
+    mock_restore_cache(hass, [State("select.wyse04_next_boot_option", "Linux")])
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "webhook_id": "test_permanent_webhook",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "http://127.0.0.1:8123",
+            "ha_grub_url": "http://127.0.0.1:8123",
+            "run_update_grub": True,
+            "boot_options": ["Linux", "Windows"],
+            "hostname": "wyse04",
+            "daemon_token": "test_daemon_token",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
+        return_value={
+            "os": "Linux",
+            "service_manager": "systemd",
+            "status": "running",
+            "version": "1.0.0",
+        },
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Check that runtime_data.next_boot was restored to "Linux"
+        assert entry.runtime_data.next_boot == "Linux"

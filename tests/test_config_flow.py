@@ -276,7 +276,6 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         port=8081,
         type="_grubstation._tcp.local.",
         properties={
-            "mac": "aa:bb:cc:dd:ee:ff",
             "paired": "false",
             "address": "127.0.0.1",
         },
@@ -300,6 +299,7 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         return_value={
             "paired": True,
             "token": "test_daemon_token",
+            "mac": "aa:bb:cc:dd:ee:ff",
         },
     ) as mock_pair:
         result2 = await hass.config_entries.flow.async_configure(
@@ -349,7 +349,6 @@ async def test_config_flow_zeroconf_already_configured(hass: HomeAssistant) -> N
         port=8081,
         type="_grubstation._tcp.local.",
         properties={
-            "mac": "aa:bb:cc:dd:ee:ff",
             "paired": "false",
             "address": "127.0.0.1",
         },
@@ -377,7 +376,6 @@ async def test_config_flow_zeroconf_already_paired(hass: HomeAssistant) -> None:
         port=8081,
         type="_grubstation._tcp.local.",
         properties={
-            "mac": "aa:bb:cc:dd:ee:ff",
             "paired": "false",
             "address": "127.0.0.1",
         },

@@ -97,20 +97,15 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 return val.decode("utf-8")
             return val
 
-        mac = _get_prop("mac")
         paired_str = _get_prop("paired")
 
         self._ip_address = str(discovery_info.ip_address)
         self._port = discovery_info.port or DEFAULT_AGENT_PORT
 
-        if mac:
-            normalized_mac = normalize_mac(mac)
-            await self.async_set_unique_id(normalized_mac)
-            self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
-            self._mac = normalized_mac
-        else:
-            await self.async_set_unique_id(self._ip_address)
-            self._abort_if_unique_id_configured()
+        # Check if already configured by IP address
+        for entry in self._async_current_entries():
+            if entry.data.get(CONF_IP_ADDRESS) == self._ip_address:
+                return self.async_abort(reason="already_configured")
 
         if discovery_info.hostname:
             self._hostname = discovery_info.hostname.removesuffix(".")
@@ -178,6 +173,16 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self._mac = response_data.get("mac", self._mac)
                 self._daemon_token = response_data.get("token")
                 self._boot_options = response_data.get("boot_options")
+
+                if self._mac:
+                    normalized_mac = normalize_mac(self._mac)
+                    await self.async_set_unique_id(normalized_mac)
+                    self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
+                    self._mac = normalized_mac
+                else:
+                    await self.async_set_unique_id(self._ip_address)
+                    self._abort_if_unique_id_configured()
+
                 return self._async_create_grubstation_entry()
 
         integration = async_get_loaded_integration(self.hass, DOMAIN)

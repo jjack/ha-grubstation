@@ -23,3 +23,8 @@ class GrubStationEntity(CoordinatorEntity[GrubStationDataUpdateCoordinator]):
     def device_info(self) -> DeviceInfo:
         """Return device information."""
         return self.coordinator.device_info
+
+    @property
+    def available(self) -> bool:
+        """Return True to make entities always available for interaction."""
+        return True

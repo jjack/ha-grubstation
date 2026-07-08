@@ -99,8 +99,8 @@ async def async_setup_entry(
         hass.http.register_view(GrubStationConfigView())
         hass.data[DOMAIN]["view_registered"] = True
 
-    # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
-    await coordinator.async_config_entry_first_refresh()
+    # Run refresh but don't fail setup if the daemon is offline during startup
+    await coordinator.async_refresh()
 
     # Register webhook
     webhook.async_register(
