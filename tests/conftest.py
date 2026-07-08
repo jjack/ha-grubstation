@@ -35,9 +35,5 @@ def mock_api_client(request):
                 "version": "1.0.0",
             },
         ),
-        patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_data",
-            return_value={"status": "ok"},
-        ),
     ):
         yield

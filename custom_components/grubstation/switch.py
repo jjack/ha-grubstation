@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
+from homeassistant.const import CONF_API_KEY
 
 from .const import CONF_DAEMONLESS, CONF_TURN_OFF_ACTION
 from .entity import GrubStationEntity
@@ -59,7 +60,6 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch."""
-        await self.coordinator.config_entry.runtime_data.client.async_set_title("bar")
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **_: Any) -> None:
@@ -69,5 +69,7 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
             domain, service = turn_off_action.split(".", 1)
             await self.hass.services.async_call(domain, service, {})
         elif not self.coordinator.config_entry.data.get(CONF_DAEMONLESS):
-            await self.coordinator.config_entry.runtime_data.client.async_shutdown()
+            await self.coordinator.config_entry.runtime_data.client.async_shutdown(
+                api_key=self.coordinator.config_entry.data[CONF_API_KEY]
+            )
         await self.coordinator.async_request_refresh()

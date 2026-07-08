@@ -51,7 +51,8 @@ async def test_config_flow(hass: HomeAssistant) -> None:
         assert result2["title"] == "GrubStation (127.0.0.1)"
         assert result2["data"]["update_grub"] is False
         assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
-        mock_pair.assert_called_once_with(pin="123456")
+        assert mock_pair.call_args.kwargs["pin"] == "123456"
+        assert mock_pair.call_args.kwargs["update_grub"] is False
 
 
 async def test_config_flow_invalid_ip(hass: HomeAssistant) -> None:
@@ -146,7 +147,8 @@ async def test_config_flow_pin_required_and_invalid_and_success(
     assert result3["title"] == "GrubStation (127.0.0.1)"
     assert result3["data"]["update_grub"] is True
     assert result3["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
-    mock_pair.assert_called_once_with(pin="123456")
+    assert mock_pair.call_args.kwargs["pin"] == "123456"
+    assert mock_pair.call_args.kwargs["update_grub"] is True
 
 
 async def test_config_flow_pin_connection_error(hass: HomeAssistant) -> None:
@@ -311,7 +313,8 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         assert result2["data"]["ha_daemon_url"] == "https://my-ha.duckdns.org:8123"
         assert result2["data"]["ha_grub_url"] == "http://10.15.0.5:8123"
         assert result2["data"]["update_grub"] is True
-        mock_pair.assert_called_once_with(pin="123456")
+        assert mock_pair.call_args.kwargs["pin"] == "123456"
+        assert mock_pair.call_args.kwargs["update_grub"] is True
 
 
 async def test_config_flow_zeroconf_already_configured(hass: HomeAssistant) -> None:

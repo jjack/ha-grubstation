@@ -35,10 +35,6 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
 
     with (
         patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_data",
-            return_value={"status": "ok"},
-        ),
-        patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
             return_value={
                 "os": "Linux",
@@ -166,10 +162,6 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
 
     with (
         patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_data",
-            return_value={"status": "ok"},
-        ),
-        patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
             return_value={
                 "os": "Linux",
@@ -211,10 +203,6 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
     # 2. Daemon is unreachable: binary sensor should be "off" (disconnected) and switch should be "off"
     with (
         patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_data",
-            return_value={"status": "ok"},
-        ),
-        patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
             side_effect=Exception("Connection failed"),
         ),
@@ -253,10 +241,6 @@ async def test_switch_turn_off_default(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
 
     with (
-        patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_data",
-            return_value={"status": "ok"},
-        ),
         patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
             return_value={
@@ -316,10 +300,6 @@ async def test_switch_turn_off_custom_action(hass: HomeAssistant) -> None:
     hass.services.async_register("script", "my_custom_shutdown", mock_service_handler)
 
     with (
-        patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_data",
-            return_value={"status": "ok"},
-        ),
         patch(
             "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
             return_value={

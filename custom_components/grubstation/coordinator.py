@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.const import CONF_IP_ADDRESS, CONF_MAC, CONF_PORT
+from homeassistant.const import CONF_API_KEY, CONF_IP_ADDRESS, CONF_MAC, CONF_PORT
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -26,7 +26,9 @@ class GrubStationDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> Any:
         """Update data via library."""
         try:
-            return await self.config_entry.runtime_data.client.async_get_status()
+            return await self.config_entry.runtime_data.client.async_get_status(
+                api_key=self.config_entry.data[CONF_API_KEY]
+            )
         except GrubStationApiClientAuthenticationError as exception:
             raise ConfigEntryAuthFailed(exception) from exception
         except GrubStationApiClientError as exception:

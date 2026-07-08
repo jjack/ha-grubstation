@@ -29,21 +29,18 @@ async def test_api_pair() -> None:
     session.request = mock_request
 
     client = GrubStationApiClient(
-        config={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "daemonless": False,
-            "webhook_id": "test_webhook",
-            "api_key": "test_key",
-            "ha_daemon_url": "http://127.0.0.1:8123",
-            "ha_grub_url": "http://127.0.0.1:8123",
-            "update_grub": True,
-        },
+        ip_address="127.0.0.1",
+        port=8081,
         session=session,
     )
 
-    result = await client.async_pair()
+    result = await client.async_pair(
+        webhook_id="test_webhook",
+        api_key="test_key",
+        ha_daemon_url="http://127.0.0.1:8123",
+        ha_grub_url="http://127.0.0.1:8123",
+        update_grub=True,
+    )
     assert result == {"paired": True}
 
 
@@ -68,21 +65,12 @@ async def test_api_unpair() -> None:
     session.request = mock_request
 
     client = GrubStationApiClient(
-        config={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "daemonless": False,
-            "webhook_id": "test_webhook",
-            "api_key": "test_key",
-            "ha_daemon_url": "http://127.0.0.1:8123",
-            "ha_grub_url": "http://127.0.0.1:8123",
-            "update_grub": True,
-        },
+        ip_address="127.0.0.1",
+        port=8081,
         session=session,
     )
 
-    result = await client.async_unpair()
+    result = await client.async_unpair(api_key="test_key")
     assert result == {"status": "unpaired"}
     assert last_headers.get("Authorization") == "Bearer test_key"
 
@@ -113,21 +101,12 @@ async def test_api_get_status() -> None:
     session.request = mock_request
 
     client = GrubStationApiClient(
-        config={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "daemonless": False,
-            "webhook_id": "test_webhook",
-            "api_key": "test_key",
-            "ha_daemon_url": "http://127.0.0.1:8123",
-            "ha_grub_url": "http://127.0.0.1:8123",
-            "update_grub": True,
-        },
+        ip_address="127.0.0.1",
+        port=8081,
         session=session,
     )
 
-    result = await client.async_get_status()
+    result = await client.async_get_status(api_key="test_key")
     assert result == {
         "os": "Linux",
         "service_manager": "systemd",
@@ -154,22 +133,19 @@ async def test_api_pair_pin_required() -> None:
     session.request = mock_request
 
     client = GrubStationApiClient(
-        config={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "daemonless": False,
-            "webhook_id": "test_webhook",
-            "api_key": "test_key",
-            "ha_daemon_url": "http://127.0.0.1:8123",
-            "ha_grub_url": "http://127.0.0.1:8123",
-            "update_grub": True,
-        },
+        ip_address="127.0.0.1",
+        port=8081,
         session=session,
     )
 
     with pytest.raises(GrubStationApiPinRequiredError):
-        await client.async_pair()
+        await client.async_pair(
+            webhook_id="test_webhook",
+            api_key="test_key",
+            ha_daemon_url="http://127.0.0.1:8123",
+            ha_grub_url="http://127.0.0.1:8123",
+            update_grub=True,
+        )
 
 
 async def test_api_pair_invalid_pin() -> None:
@@ -189,22 +165,20 @@ async def test_api_pair_invalid_pin() -> None:
     session.request = mock_request
 
     client = GrubStationApiClient(
-        config={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "daemonless": False,
-            "webhook_id": "test_webhook",
-            "api_key": "test_key",
-            "ha_daemon_url": "http://127.0.0.1:8123",
-            "ha_grub_url": "http://127.0.0.1:8123",
-            "update_grub": True,
-        },
+        ip_address="127.0.0.1",
+        port=8081,
         session=session,
     )
 
     with pytest.raises(GrubStationApiInvalidPinError):
-        await client.async_pair(pin="123456")
+        await client.async_pair(
+            pin="123456",
+            webhook_id="test_webhook",
+            api_key="test_key",
+            ha_daemon_url="http://127.0.0.1:8123",
+            ha_grub_url="http://127.0.0.1:8123",
+            update_grub=True,
+        )
 
 
 async def test_api_pair_with_pin_success() -> None:
@@ -234,21 +208,19 @@ async def test_api_pair_with_pin_success() -> None:
     session.request = mock_request
 
     client = GrubStationApiClient(
-        config={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "daemonless": False,
-            "webhook_id": "test_webhook",
-            "api_key": "test_key",
-            "ha_daemon_url": "http://127.0.0.1:8123",
-            "ha_grub_url": "http://127.0.0.1:8123",
-            "update_grub": True,
-        },
+        ip_address="127.0.0.1",
+        port=8081,
         session=session,
     )
 
-    result = await client.async_pair(pin="123456")
+    result = await client.async_pair(
+        pin="123456",
+        webhook_id="test_webhook",
+        api_key="test_key",
+        ha_daemon_url="http://127.0.0.1:8123",
+        ha_grub_url="http://127.0.0.1:8123",
+        update_grub=True,
+    )
     assert result == {
         "paired": True,
         "mac": "aa:bb:cc:dd:ee:ff",

@@ -149,20 +149,18 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     async_handle_webhook,
                 )
                 client = GrubStationApiClient(
-                    config={
-                        CONF_IP_ADDRESS: self._ip_address,
-                        CONF_PORT: self._port,
-                        CONF_MAC: self._mac,
-                        CONF_DAEMONLESS: self._is_daemonless,
-                        CONF_WEBHOOK_ID: self._webhook_id,
-                        CONF_API_KEY: self._api_key,
-                        CONF_HA_DAEMON_URL: self._ha_daemon_url,
-                        CONF_HA_GRUB_URL: self._ha_grub_url,
-                        CONF_UPDATE_GRUB: self._update_grub,
-                    },
+                    ip_address=self._ip_address,
+                    port=self._port,
                     session=async_create_clientsession(self.hass),
                 )
-                response_data = await client.async_pair(pin=pin)
+                response_data = await client.async_pair(
+                    pin=pin,
+                    webhook_id=self._webhook_id,
+                    api_key=self._api_key,
+                    ha_daemon_url=self._ha_daemon_url,
+                    ha_grub_url=self._ha_grub_url,
+                    update_grub=self._update_grub,
+                )
             except GrubStationApiConflictError:
                 _errors["base"] = "already_paired"
                 webhook.async_unregister(self.hass, self._webhook_id)
@@ -287,20 +285,18 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         async_handle_webhook,
                     )
                     client = GrubStationApiClient(
-                        config={
-                            CONF_IP_ADDRESS: self._ip_address,
-                            CONF_PORT: self._port,
-                            CONF_MAC: self._mac,
-                            CONF_DAEMONLESS: self._is_daemonless,
-                            CONF_WEBHOOK_ID: self._webhook_id,
-                            CONF_API_KEY: self._api_key,
-                            CONF_HA_DAEMON_URL: self._ha_daemon_url,
-                            CONF_HA_GRUB_URL: self._ha_grub_url,
-                            CONF_UPDATE_GRUB: self._update_grub,
-                        },
+                        ip_address=self._ip_address,
+                        port=self._port,
                         session=async_create_clientsession(self.hass),
                     )
-                    response_data = await client.async_pair(pin=pin)
+                    response_data = await client.async_pair(
+                        pin=pin,
+                        webhook_id=self._webhook_id,
+                        api_key=self._api_key,
+                        ha_daemon_url=self._ha_daemon_url,
+                        ha_grub_url=self._ha_grub_url,
+                        update_grub=self._update_grub,
+                    )
                 except GrubStationApiConflictError:
                     _errors["base"] = "already_paired"
                     webhook.async_unregister(self.hass, self._webhook_id)

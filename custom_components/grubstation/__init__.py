@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from aiohttp import web
 
 from homeassistant.components import webhook
-from homeassistant.const import CONF_WEBHOOK_ID, Platform
+from homeassistant.const import CONF_API_KEY, CONF_IP_ADDRESS, CONF_PORT, CONF_WEBHOOK_ID, Platform
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
@@ -84,7 +84,8 @@ async def async_setup_entry(
     )
     entry.runtime_data = GrubStationData(
         client=GrubStationApiClient(
-            config=entry.data,
+            ip_address=entry.data[CONF_IP_ADDRESS],
+            port=entry.data[CONF_PORT],
             session=async_get_clientsession(hass),
         ),
         integration=async_get_loaded_integration(hass, entry.domain),
@@ -138,10 +139,11 @@ async def async_remove_entry(
 ) -> None:
     """Handle removal of an entry."""
     client = GrubStationApiClient(
-        config=entry.data,
+        ip_address=entry.data[CONF_IP_ADDRESS],
+        port=entry.data[CONF_PORT],
         session=async_get_clientsession(hass),
     )
     try:
-        await client.async_unpair()
+        await client.async_unpair(api_key=entry.data[CONF_API_KEY])
     except Exception as exception:  # noqa: BLE001
         LOGGER.warning("Failed to unpair from GrubStation: %s", exception)
