@@ -12,7 +12,7 @@
     "zeroconf"
   ],
   "documentation": "https://github.com/jjack/ha-grubstation",
-  "integration_type": "hub",
+  "integration_type": "device",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jjack/ha-grubstation/issues",
   "requirements": [
