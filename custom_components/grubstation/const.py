@@ -6,7 +6,7 @@ from typing import Final
 LOGGER: Logger = getLogger(__package__)
 
 DOMAIN: Final[str] = "grubstation"
-ATTRIBUTION: Final[str] = "Data provided by http://jsonplaceholder.typicode.com/"
+ATTRIBUTION: Final[str] = "Data provided by GrubStation"
 
 ATTR_OS: Final[str] = "os"
 ATTR_SERVICE_MANAGER: Final[str] = "service_manager"
