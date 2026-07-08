@@ -59,7 +59,7 @@
         },
         "error": {
             "auth": "Authentication failed.",
-            "connection": "Unable to connect to the server.",
+            "connection": "Unable to connect to the GrubStation daemon.",
             "unknown": "Unknown error occurred.",
             "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled.",
             "turn_off_action_required_for_daemonless": "A custom turn-off action is required when daemonless mode is enabled.",
@@ -90,6 +90,23 @@
         },
         "error": {
             "turn_off_action_required_for_daemonless": "A custom turn-off action is required when daemonless mode is enabled."
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "agent_status": {
+                "name": "Agent Status"
+            }
+        },
+        "select": {
+            "next_boot_option": {
+                "name": "Next Boot Option"
+            }
+        },
+        "switch": {
+            "power": {
+                "name": "Power"
+            }
         }
     }
 }

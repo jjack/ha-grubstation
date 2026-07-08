@@ -13,6 +13,7 @@ class GrubStationEntity(CoordinatorEntity[GrubStationDataUpdateCoordinator]):
     """GrubStationEntity class."""
 
     _attr_attribution = ATTRIBUTION
+    _attr_has_entity_name = True
 
     def __init__(self, coordinator: GrubStationDataUpdateCoordinator) -> None:
         """Initialize."""

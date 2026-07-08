@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 ENTITY_DESCRIPTIONS = (
     SelectEntityDescription(
         key="boot_option",
-        name="Next Boot Option",
+        translation_key="next_boot_option",
     ),
 )
 

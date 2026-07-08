@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 ENTITY_DESCRIPTIONS = (
     SwitchEntityDescription(
         key="grubstation",
-        name="Power Switch",
+        translation_key="power",
     ),
 )
 
@@ -50,7 +50,6 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
         """Initialize the switch class."""
         super().__init__(coordinator)
         self.entity_description = entity_description
-        self._attr_name = f"{coordinator.config_entry.title} Power"
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_power"
 
     @property
