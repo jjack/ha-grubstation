@@ -187,15 +187,14 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
         entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
         binary_sensor_entity_id = next(e.entity_id for e in entities if e.domain == "binary_sensor")
         switch_entity_id = next(e.entity_id for e in entities if e.domain == "switch")
-        sensor_entry = next(e for e in entities if e.domain == "sensor")
+        select_entity_id = next(e.entity_id for e in entities if e.domain == "select")
 
         # Verify initial state after a successful pair/setup is "on"
         assert hass.states.get(binary_sensor_entity_id).state == "on"
         assert hass.states.get(switch_entity_id).state == "on"
 
-        # Verify the sensor is disabled by default
-        assert sensor_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-        assert hass.states.get(sensor_entry.entity_id) is None
+        # Verify the select entity is enabled and defaults to "default"
+        assert hass.states.get(select_entity_id).state == "default"
 
         # Trigger update on both entities to pull the mocked status
         await entry.runtime_data.coordinator.async_refresh()

@@ -28,6 +28,7 @@ from .api import (
     GrubStationApiPinRequiredError,
 )
 from .const import (
+    CONF_ADVANCED_OPTIONS,
     CONF_BOOT_OPTIONS,
     CONF_DAEMONLESS,
     CONF_HA_DAEMON_URL,
@@ -36,12 +37,15 @@ from .const import (
     CONF_TURN_OFF_ACTION,
     CONF_UPDATE_GRUB,
     DEFAULT_AGENT_PORT,
-    DEFAULT_DAEMONLESS,
+    DEFAULT_SERVER_PORT,
     DOMAIN,
     LOGGER,
-    SERVER_PORT,
 )
 from .helpers import format_display_name, is_ip_address, normalize_mac
+
+CONF_SETUP_TYPE = "setup_type"
+SETUP_TYPE_AGENT = "agent"
+SETUP_TYPE_DAEMONLESS = "daemonless"
 
 
 async def async_handle_webhook(
@@ -125,8 +129,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             pin = user_input[CONF_PIN]
-            advanced = user_input.get("advanced_options", {})
-            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
+            advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
+            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
             self._turn_off_action = advanced.get(CONF_TURN_OFF_ACTION)
@@ -187,8 +191,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         )
                     ),
-                    vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
-                    vol.Required("advanced_options"): section(
+                    vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
                                 vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
@@ -197,6 +200,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                 vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
+                                vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
                                 vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
                             }
                         ),
@@ -218,39 +222,124 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict | None = None,
     ) -> config_entries.ConfigFlowResult:
         """Handle a flow initialized by the user."""
+        if user_input is not None:
+            if user_input[CONF_SETUP_TYPE] == SETUP_TYPE_DAEMONLESS:
+                self._is_daemonless = True
+                return await self.async_step_daemonless_config()
+            self._is_daemonless = False
+            return await self.async_step_agent_config()
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SETUP_TYPE,
+                        default=SETUP_TYPE_AGENT,
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                SETUP_TYPE_AGENT,
+                                SETUP_TYPE_DAEMONLESS,
+                            ],
+                            mode=selector.SelectSelectorMode.LIST,
+                            translation_key="setup_type_options",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_agent_config(
+        self,
+        user_input: dict | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Configure a standard agent host."""
         _errors: dict[str, str] = {}
+        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+
         if user_input is not None:
             self._ip_address = user_input[CONF_IP_ADDRESS]
-            self._port = user_input[CONF_PORT]
-            self._mac = user_input.get(CONF_MAC)
-            self._is_daemonless = user_input.get(CONF_DAEMONLESS, False)
-            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
+
+            advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
+            self._port = int(advanced.get(CONF_PORT, DEFAULT_AGENT_PORT))
+            self._turn_off_action = advanced.get(CONF_TURN_OFF_ACTION)
+            self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
+            self._ha_grub_url = getattr(self, "_ha_grub_url", None) or advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
+            self._is_daemonless = False
 
             if not is_ip_address(self._ip_address):
                 _errors[CONF_IP_ADDRESS] = "invalid_ip"
-            elif self._is_daemonless and not self._mac:
-                _errors[CONF_MAC] = "mac_required_for_daemonless"
-            elif self._is_daemonless and not self._turn_off_action:
-                _errors[CONF_TURN_OFF_ACTION] = "turn_off_action_required_for_daemonless"
             else:
-                if self._mac:
-                    normalized_mac = normalize_mac(self._mac)
-                    await self.async_set_unique_id(normalized_mac)
-                    self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
-                    self._mac = normalized_mac
-                else:
-                    await self.async_set_unique_id(self._ip_address)
-                    self._abort_if_unique_id_configured()
+                pin = user_input[CONF_PIN]
+                if not self._webhook_id:
+                    self._webhook_id = webhook.async_generate_id()
+                if not self._api_key:
+                    self._api_key = secrets.token_hex(32)
 
-                if self._is_daemonless:
-                    return await self.async_step_daemonless_onboarding()
-                return await self.async_step_pairing()
+                try:
+                    webhook.async_register(
+                        self.hass,
+                        DOMAIN,
+                        "GrubStation Webhook",
+                        self._webhook_id,
+                        async_handle_webhook,
+                    )
+                    client = GrubStationApiClient(
+                        config={
+                            CONF_IP_ADDRESS: self._ip_address,
+                            CONF_PORT: self._port,
+                            CONF_MAC: self._mac,
+                            CONF_DAEMONLESS: self._is_daemonless,
+                            CONF_WEBHOOK_ID: self._webhook_id,
+                            CONF_API_KEY: self._api_key,
+                            CONF_HA_DAEMON_URL: self._ha_daemon_url,
+                            CONF_HA_GRUB_URL: self._ha_grub_url,
+                            CONF_UPDATE_GRUB: self._update_grub,
+                        },
+                        session=async_create_clientsession(self.hass),
+                    )
+                    response_data = await client.async_pair(pin=pin)
+                except GrubStationApiConflictError:
+                    _errors["base"] = "already_paired"
+                    webhook.async_unregister(self.hass, self._webhook_id)
+                except GrubStationApiPinRequiredError, GrubStationApiInvalidPinError:
+                    _errors["base"] = "invalid_pin"
+                    webhook.async_unregister(self.hass, self._webhook_id)
+                except Exception as exception:  # noqa: BLE001
+                    LOGGER.exception(exception)
+                    _errors["base"] = "connection"
+                    webhook.async_unregister(self.hass, self._webhook_id)
+                else:
+                    webhook.async_unregister(self.hass, self._webhook_id)
+                    self._mac = response_data.get("mac")
+                    self._boot_options = response_data.get("boot_options")
+
+                    if self._mac:
+                        normalized_mac = normalize_mac(self._mac)
+                        await self.async_set_unique_id(normalized_mac)
+                        self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
+                        self._mac = normalized_mac
+                    else:
+                        await self.async_set_unique_id(self._ip_address)
+                        self._abort_if_unique_id_configured()
+
+                    return self._async_create_grubstation_entry()
+
+        # Defaults for the advanced options
+        current_advanced = (user_input or {}).get(CONF_ADVANCED_OPTIONS, {})
+        default_port = current_advanced.get(CONF_PORT, DEFAULT_AGENT_PORT)
+        default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
+        default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+        default_update_grub = current_advanced.get(CONF_UPDATE_GRUB, True)
+        default_turn_off = current_advanced.get(CONF_TURN_OFF_ACTION, vol.UNDEFINED)
 
         integration = async_get_loaded_integration(self.hass, DOMAIN)
         assert integration.documentation is not None, "Integration documentation URL is not set in manifest.json"
 
         return self.async_show_form(
-            step_id="user",
+            step_id="agent_config",
             description_placeholders={
                 "documentation_url": integration.documentation,
             },
@@ -265,13 +354,111 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         ),
                     ),
                     vol.Required(
-                        CONF_PORT,
-                        default=(user_input or {}).get(CONF_PORT, DEFAULT_AGENT_PORT),
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=1025,
-                            max=65535,
-                            mode=selector.NumberSelectorMode.BOX,
+                        CONF_PIN,
+                        default=(user_input or {}).get(CONF_PIN, vol.UNDEFINED),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
+                        )
+                    ),
+                    vol.Required(CONF_ADVANCED_OPTIONS): section(
+                        vol.Schema(
+                            {
+                                vol.Required(
+                                    CONF_PORT,
+                                    default=default_port,
+                                ): selector.NumberSelector(
+                                    selector.NumberSelectorConfig(
+                                        min=1025,
+                                        max=65535,
+                                        mode=selector.NumberSelectorMode.BOX,
+                                    ),
+                                ),
+                                vol.Required(
+                                    CONF_HA_DAEMON_URL,
+                                    default=default_ha_daemon,
+                                ): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Required(
+                                    CONF_HA_GRUB_URL,
+                                    default=default_ha_grub,
+                                ): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Required(
+                                    CONF_UPDATE_GRUB,
+                                    default=default_update_grub,
+                                ): selector.BooleanSelector(),
+                                vol.Optional(
+                                    CONF_TURN_OFF_ACTION,
+                                    default=default_turn_off,
+                                ): selector.ActionSelector(),
+                            }
+                        ),
+                        {"collapsed": True},
+                    ),
+                },
+            ),
+            errors=_errors,
+        )
+
+    async def async_step_daemonless_config(
+        self,
+        user_input: dict | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Configure a daemonless host."""
+        _errors: dict[str, str] = {}
+        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+
+        if user_input is not None:
+            self._ip_address = user_input[CONF_IP_ADDRESS]
+            self._mac = user_input.get(CONF_MAC)
+
+            advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
+            self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
+            self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
+            self._port = DEFAULT_AGENT_PORT
+            self._is_daemonless = True
+            self._turn_off_action = None
+
+            if not is_ip_address(self._ip_address):
+                _errors[CONF_IP_ADDRESS] = "invalid_ip"
+            else:
+                if self._mac:
+                    normalized_mac = normalize_mac(self._mac)
+                    await self.async_set_unique_id(normalized_mac)
+                    self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
+                    self._mac = normalized_mac
+                else:
+                    await self.async_set_unique_id(self._ip_address)
+                    self._abort_if_unique_id_configured()
+
+                return await self.async_step_daemonless_onboarding()
+
+        # Defaults for the advanced options
+        current_advanced = (user_input or {}).get(CONF_ADVANCED_OPTIONS, {})
+        default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
+        default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+        default_update_grub = current_advanced.get(CONF_UPDATE_GRUB, True)
+
+        integration = async_get_loaded_integration(self.hass, DOMAIN)
+        assert integration.documentation is not None, "Integration documentation URL is not set in manifest.json"
+
+        return self.async_show_form(
+            step_id="daemonless_config",
+            description_placeholders={
+                "documentation_url": integration.documentation,
+            },
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_IP_ADDRESS,
+                        default=(user_input or {}).get(CONF_IP_ADDRESS, vol.UNDEFINED),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT,
                         ),
                     ),
                     vol.Optional(
@@ -282,151 +469,30 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         ),
                     ),
-                    vol.Required(
-                        CONF_DAEMONLESS,
-                        default=(user_input or {}).get(CONF_DAEMONLESS, DEFAULT_DAEMONLESS),
-                    ): selector.BooleanSelector(),
-                    vol.Optional(
-                        CONF_TURN_OFF_ACTION,
-                        default=(user_input or {}).get(CONF_TURN_OFF_ACTION, vol.UNDEFINED),
-                    ): selector.ActionSelector(),
+                    vol.Required(CONF_ADVANCED_OPTIONS): section(
+                        vol.Schema(
+                            {
+                                vol.Required(
+                                    CONF_HA_DAEMON_URL,
+                                    default=default_ha_daemon,
+                                ): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Required(
+                                    CONF_HA_GRUB_URL,
+                                    default=default_ha_grub,
+                                ): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Required(
+                                    CONF_UPDATE_GRUB,
+                                    default=default_update_grub,
+                                ): selector.BooleanSelector(),
+                            }
+                        ),
+                        {"collapsed": True},
+                    ),
                 },
-            ),
-            errors=_errors,
-        )
-
-    async def async_step_pairing(
-        self,
-        user_input: dict | None = None,
-    ) -> config_entries.ConfigFlowResult:
-        """Handle pairing step."""
-        _errors = {}
-        if user_input is not None:
-            if not self._webhook_id:
-                self._webhook_id = webhook.async_generate_id()
-            if not self._api_key:
-                self._api_key = secrets.token_hex(32)
-
-        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
-
-        if user_input is not None:
-            self._ha_daemon_url = user_input.get(CONF_HA_DAEMON_URL, ha_daemon_url)
-            self._ha_grub_url = user_input.get(CONF_HA_GRUB_URL, ha_grub_url)
-            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
-            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
-
-            try:
-                webhook.async_register(
-                    self.hass,
-                    DOMAIN,
-                    "GrubStation Webhook",
-                    self._webhook_id,
-                    async_handle_webhook,
-                )
-                client = GrubStationApiClient(
-                    config={
-                        CONF_IP_ADDRESS: self._ip_address,
-                        CONF_PORT: self._port,
-                        CONF_MAC: self._mac,
-                        CONF_DAEMONLESS: self._is_daemonless,
-                        CONF_WEBHOOK_ID: self._webhook_id,
-                        CONF_API_KEY: self._api_key,
-                        CONF_HA_DAEMON_URL: self._ha_daemon_url,
-                        CONF_HA_GRUB_URL: self._ha_grub_url,
-                        CONF_UPDATE_GRUB: self._update_grub,
-                    },
-                    session=async_create_clientsession(self.hass),
-                )
-                response_data = await client.async_pair()
-            except GrubStationApiPinRequiredError:
-                webhook.async_unregister(self.hass, self._webhook_id)
-                return await self.async_step_pin()
-            except GrubStationApiConflictError:
-                _errors["base"] = "already_paired"
-                webhook.async_unregister(self.hass, self._webhook_id)
-            except Exception as exception:  # noqa: BLE001
-                LOGGER.exception(exception)
-                _errors["base"] = "connection"
-                webhook.async_unregister(self.hass, self._webhook_id)
-            else:
-                webhook.async_unregister(self.hass, self._webhook_id)
-                self._mac = response_data.get("mac", self._mac)
-                self._boot_options = response_data.get("boot_options")
-                return self._async_create_grubstation_entry()
-
-        return self.async_show_form(
-            step_id="pairing",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
-                    vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
-                    vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
-                }
-            ),
-            errors=_errors,
-        )
-
-    async def async_step_pin(
-        self,
-        user_input: dict | None = None,
-    ) -> config_entries.ConfigFlowResult:
-        """Handle PIN authentication step."""
-        _errors = {}
-        if user_input is not None:
-            pin = user_input[CONF_PIN]
-            try:
-                webhook.async_register(
-                    self.hass,
-                    DOMAIN,
-                    "GrubStation Webhook",
-                    self._webhook_id,
-                    async_handle_webhook,
-                )
-                client = GrubStationApiClient(
-                    config={
-                        CONF_IP_ADDRESS: self._ip_address,
-                        CONF_PORT: self._port,
-                        CONF_MAC: self._mac,
-                        CONF_DAEMONLESS: self._is_daemonless,
-                        CONF_WEBHOOK_ID: self._webhook_id,
-                        CONF_API_KEY: self._api_key,
-                        CONF_HA_DAEMON_URL: self._ha_daemon_url,
-                        CONF_HA_GRUB_URL: self._ha_grub_url,
-                        CONF_UPDATE_GRUB: self._update_grub,
-                    },
-                    session=async_create_clientsession(self.hass),
-                )
-                response_data = await client.async_pair(pin=pin)
-            except GrubStationApiConflictError:
-                _errors["base"] = "already_paired"
-                webhook.async_unregister(self.hass, self._webhook_id)
-            except GrubStationApiInvalidPinError:
-                _errors["base"] = "invalid_pin"
-                webhook.async_unregister(self.hass, self._webhook_id)
-            except Exception as exception:  # noqa: BLE001
-                LOGGER.exception(exception)
-                _errors["base"] = "connection"
-                webhook.async_unregister(self.hass, self._webhook_id)
-            else:
-                webhook.async_unregister(self.hass, self._webhook_id)
-                self._mac = response_data.get("mac", self._mac)
-                self._boot_options = response_data.get("boot_options")
-                return self._async_create_grubstation_entry()
-
-        return self.async_show_form(
-            step_id="pin",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_PIN): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.TEXT,
-                        )
-                    )
-                }
             ),
             errors=_errors,
         )
@@ -447,7 +513,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         self._ha_daemon_url = ha_daemon_url
         self._ha_grub_url = ha_grub_url
-        self._update_grub = True
+        self._update_grub = getattr(self, "_update_grub", True)
         self._turn_off_action = None
 
         payload_dict = {
@@ -455,7 +521,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             "webhook_id": self._webhook_id,
             "api_key": self._api_key,
             "ha_grub_url": f"{ha_grub_url}/api/grubstation/boot",
-            "update_grub": True,
+            "update_grub": self._update_grub,
         }
         payload_str = json.dumps(payload_dict)
         pairing_command = f"sudo grubstation pair --payload '{payload_str}'"
@@ -565,7 +631,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     ha_ip,
                 )
 
-            port = SERVER_PORT
+            port = DEFAULT_SERVER_PORT
             api = getattr(self.hass.config, "api", None)
             if api and getattr(api, "port", None):
                 port = api.port
@@ -600,15 +666,11 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
             new_data[CONF_UPDATE_GRUB] = user_input[CONF_UPDATE_GRUB]
             new_data[CONF_TURN_OFF_ACTION] = user_input.get(CONF_TURN_OFF_ACTION)
 
-            # Validate: daemonless hosts require a turn_off_action
-            if new_data.get(CONF_DAEMONLESS) and not new_data[CONF_TURN_OFF_ACTION]:
-                _errors[CONF_TURN_OFF_ACTION] = "turn_off_action_required_for_daemonless"
-            else:
-                self.hass.config_entries.async_update_entry(
-                    self._config_entry,
-                    data=new_data,
-                )
-                return self.async_create_entry(title="", data={})
+            self.hass.config_entries.async_update_entry(
+                self._config_entry,
+                data=new_data,
+            )
+            return self.async_create_entry(title="", data={})
 
         current = self._config_entry.data
 

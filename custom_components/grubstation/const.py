@@ -1,26 +1,27 @@
 """Constants for grubstation."""
 
 from logging import Logger, getLogger
+from typing import Final
 
 LOGGER: Logger = getLogger(__package__)
 
-DOMAIN = "grubstation"
-ATTRIBUTION = "Data provided by http://jsonplaceholder.typicode.com/"
+DOMAIN: Final[str] = "grubstation"
+ATTRIBUTION: Final[str] = "Data provided by http://jsonplaceholder.typicode.com/"
 
-ATTR_OS = "os"
-ATTR_VERSION = "version"
-ATTR_SERVICE_MANAGER = "service_manager"
+ATTR_OS: Final[str] = "os"
+ATTR_SERVICE_MANAGER: Final[str] = "service_manager"
+ATTR_VERSION: Final[str] = "version"
 
-CONF_BOOT_OPTIONS = "boot_options"
-CONF_DAEMONLESS = "daemonless"
-CONF_HA_DAEMON_URL = "ha_daemon_url"
-CONF_HA_GRUB_URL = "ha_grub_url"
-CONF_UPDATE_GRUB = "update_grub"
-CONF_TURN_OFF_ACTION = "turn_off_action"
-CONF_HOSTNAME = "hostname"
+CONF_ADVANCED_OPTIONS: Final[str] = "advanced_options"
+CONF_BOOT_OPTIONS: Final[str] = "boot_options"
+CONF_DAEMONLESS: Final[str] = "daemonless"
+CONF_HA_DAEMON_URL: Final[str] = "ha_daemon_url"
+CONF_HA_GRUB_URL: Final[str] = "ha_grub_url"
+CONF_HOSTNAME: Final[str] = "hostname"
+CONF_TURN_OFF_ACTION: Final[str] = "turn_off_action"
+CONF_UPDATE_GRUB: Final[str] = "update_grub"
 
-DEFAULT_AGENT_PORT = 8081
-DEFAULT_DAEMONLESS = False
-SERVER_PORT = 8123
-
-DEFAULT_BOOT_OPTION = "default"
+DEFAULT_AGENT_PORT: Final[int] = 8081
+DEFAULT_BOOT_OPTION: Final[str] = "default"
+DEFAULT_DAEMONLESS: Final[bool] = False
+DEFAULT_SERVER_PORT: Final[int] = 8123

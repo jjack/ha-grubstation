@@ -72,15 +72,15 @@ class GrubStationApiClient:
         session: aiohttp.ClientSession,
     ) -> None:
         """Sample API Client."""
-        self._ip_address = config[CONF_IP_ADDRESS]
-        self._port = config[CONF_PORT]
-        self._mac = config.get(CONF_MAC)
-        self._daemonless = config.get(CONF_DAEMONLESS, False)
-        self._webhook_id = config.get(CONF_WEBHOOK_ID)
-        self._api_key = config.get(CONF_API_KEY)
-        self._ha_daemon_url = config.get(CONF_HA_DAEMON_URL)
-        self._ha_grub_url = config.get(CONF_HA_GRUB_URL)
-        self._update_grub = config.get(CONF_UPDATE_GRUB, True)
+        self._ip_address: str = config[CONF_IP_ADDRESS]
+        self._port: int = int(config[CONF_PORT])
+        self._mac: str | None = config.get(CONF_MAC)
+        self._daemonless: bool | None = config.get(CONF_DAEMONLESS, False)
+        self._webhook_id: str | None = config.get(CONF_WEBHOOK_ID)
+        self._api_key: str | None = config.get(CONF_API_KEY)
+        self._ha_daemon_url: str | None = config.get(CONF_HA_DAEMON_URL)
+        self._ha_grub_url: str | None = config.get(CONF_HA_GRUB_URL)
+        self._update_grub: bool | None = config.get(CONF_UPDATE_GRUB, True)
         self._session = session
 
     async def async_pair(self, pin: str | None = None) -> Any:

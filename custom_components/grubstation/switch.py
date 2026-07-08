@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 
-from .const import CONF_TURN_OFF_ACTION
+from .const import CONF_DAEMONLESS, CONF_TURN_OFF_ACTION
 from .entity import GrubStationEntity
 
 if TYPE_CHECKING:
@@ -68,6 +68,6 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
         if turn_off_action and "." in turn_off_action:
             domain, service = turn_off_action.split(".", 1)
             await self.hass.services.async_call(domain, service, {})
-        else:
+        elif not self.coordinator.config_entry.data.get(CONF_DAEMONLESS):
             await self.coordinator.config_entry.runtime_data.client.async_shutdown()
         await self.coordinator.async_request_refresh()
