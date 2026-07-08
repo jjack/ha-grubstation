@@ -39,7 +39,7 @@ from .const import (
     LOGGER,
     SERVER_PORT,
 )
-from .helpers import format_display_name, is_ip_address
+from .helpers import format_display_name, is_ip_address, normalize_mac
 
 
 async def async_handle_webhook(
@@ -96,7 +96,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._port = discovery_info.port or DEFAULT_AGENT_PORT
 
         if mac:
-            normalized_mac = mac.lower()
+            normalized_mac = normalize_mac(mac)
             await self.async_set_unique_id(normalized_mac)
             self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
             self._mac = normalized_mac
@@ -226,7 +226,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 _errors[CONF_TURN_OFF_ACTION] = "turn_off_action_required_for_daemonless"
             else:
                 if self._mac:
-                    normalized_mac = self._mac.lower()
+                    normalized_mac = normalize_mac(self._mac)
                     await self.async_set_unique_id(normalized_mac)
                     self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
                     self._mac = normalized_mac

@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from .coordinator import GrubStationDataUpdateCoordinator
 
 
+from .const import DEFAULT_BOOT_OPTION
+
 type GrubStationConfigEntry = ConfigEntry[GrubStationData]
 
 
@@ -23,4 +25,4 @@ class GrubStationData:
     client: GrubStationApiClient
     coordinator: GrubStationDataUpdateCoordinator
     integration: Integration
-    next_boot: str = "default"
+    next_boot: str = DEFAULT_BOOT_OPTION

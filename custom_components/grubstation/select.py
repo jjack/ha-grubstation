@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 
-from .const import CONF_BOOT_OPTIONS
+from .const import CONF_BOOT_OPTIONS, DEFAULT_BOOT_OPTION
 from .entity import GrubStationEntity
 
 if TYPE_CHECKING:
@@ -57,14 +57,14 @@ class GrubStationSelect(GrubStationEntity, SelectEntity):
     def options(self) -> list[str]:
         """Return a list of available options."""
         boot_options = self.coordinator.config_entry.data.get(CONF_BOOT_OPTIONS) or []
-        return ["default"] + [opt for opt in boot_options if opt != "default"]
+        return [DEFAULT_BOOT_OPTION] + [opt for opt in boot_options if opt != DEFAULT_BOOT_OPTION]
 
     @property
     def current_option(self) -> str | None:
         """Return the selected entity option."""
         if hasattr(self.coordinator.config_entry, "runtime_data"):
             return self.coordinator.config_entry.runtime_data.next_boot
-        return "default"
+        return DEFAULT_BOOT_OPTION
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
