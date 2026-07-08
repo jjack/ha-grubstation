@@ -307,7 +307,7 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
 
     # Verify context title_placeholders is populated for discovery page
     flow = hass.config_entries.flow._progress[result["flow_id"]]
-    assert flow.context["title_placeholders"] == {"name": "127.0.0.1 (grubstation.local)"}
+    assert flow.context["title_placeholders"] == {"name": "grubstation.local"}
 
     # Submit pairing step, which generates credentials and calls pairing API
     with patch(
@@ -324,7 +324,7 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
             },
         )
         assert result2["type"] == "create_entry"
-        assert result2["title"] == "grubstation.local (127.0.0.1)"
+        assert result2["title"] == "grubstation.local"
         assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
         assert result2["data"]["ip_address"] == "127.0.0.1"
         assert result2["data"]["ha_daemon_url"] == "https://my-ha.duckdns.org:8123"

@@ -19,4 +19,4 @@ def test_format_display_name() -> None:
     assert format_display_name("192.168.1.100", None) == "192.168.1.100"
 
     # 2. Host is an IP address
-    assert format_display_name("192.168.1.100", "livingroom-pc.local") == "livingroom-pc.local (192.168.1.100)"
+    assert format_display_name("192.168.1.100", "livingroom-pc.local") == "livingroom-pc.local"

@@ -110,9 +110,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._paired = paired_str
         self._is_daemonless = False
 
-        self.context["title_placeholders"] = {
-            "name": f"{self._ip_address} ({self._hostname})" if self._hostname else self._ip_address
-        }
+        self.context["title_placeholders"] = {"name": format_display_name(self._ip_address, self._hostname)}
 
         return await self.async_step_zeroconf_confirm()
 

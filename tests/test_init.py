@@ -55,7 +55,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         device_registry = dr.async_get(hass)
         device = device_registry.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
         assert device is not None
-        assert device.name == "test01 (192.168.1.100)"
+        assert device.name == "test01"
         assert device.connections == {(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")}
 
         # Verify that pre-boot view is registered and works

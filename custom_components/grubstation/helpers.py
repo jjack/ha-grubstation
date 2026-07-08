@@ -20,7 +20,7 @@ def format_display_name(host: str, hostname: str | None, fallback_prefix: str | 
     if not hostname:
         return f"{fallback_prefix} ({host})" if fallback_prefix else host
 
-    return f"{hostname} ({host})"
+    return hostname
 
 
 def normalize_mac(mac: str) -> str:
