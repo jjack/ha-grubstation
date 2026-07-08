@@ -624,7 +624,7 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_HA_GRUB_URL,
                         default=current.get(CONF_HA_GRUB_URL, ""),
                     ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
-                    vol.Required(
+                    vol.Optional(
                         CONF_UPDATE_GRUB,
                         default=current.get(CONF_UPDATE_GRUB, True),
                     ): selector.BooleanSelector(),
