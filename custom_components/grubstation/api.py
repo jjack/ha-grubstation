@@ -128,7 +128,7 @@ class GrubStationApiClient:
             url=f"http://{self._ip_address}:{self._port}/status",
             headers=headers,
         )
-        if status and (not status.get("paired", True) or not status.get("token_configured", True)):
+        if status and not status.get("paired", True):
             raise GrubStationApiClientAuthenticationError("Device is no longer paired")
         return status
 
