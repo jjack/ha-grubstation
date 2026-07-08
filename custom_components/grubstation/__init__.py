@@ -65,7 +65,9 @@ async def async_handle_webhook(
 
     # 2. Update status/coordinator data if provided
     if hasattr(entry, "runtime_data") and ("status" in payload or "os" in payload):
-        entry.runtime_data.coordinator.async_set_updated_data(payload)
+        current_data = entry.runtime_data.coordinator.data or {}
+        merged_data = {**current_data, **payload}
+        entry.runtime_data.coordinator.async_set_updated_data(merged_data)
 
     return web.json_response({"status": "ok"})
 
