@@ -11,10 +11,10 @@
     "webhook",
     "zeroconf"
   ],
-  "documentation": "https://github.com/jjack/grubstation",
+  "documentation": "https://github.com/jjack/ha-grubstation",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/jjack/grubstation/issues",
+  "issue_tracker": "https://github.com/jjack/ha-grubstation/issues",
   "requirements": [
     "wakeonlan>=1.1.6"
   ],
