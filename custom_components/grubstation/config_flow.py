@@ -15,6 +15,7 @@ from homeassistant.components import webhook
 from homeassistant.components.network.util import async_get_source_ip
 from homeassistant.const import CONF_API_KEY, CONF_IP_ADDRESS, CONF_MAC, CONF_PIN, CONF_PORT, CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import network, selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
@@ -124,10 +125,11 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             pin = user_input[CONF_PIN]
-            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
-            self._ha_daemon_url = user_input.get(CONF_HA_DAEMON_URL, ha_daemon_url)
-            self._ha_grub_url = user_input.get(CONF_HA_GRUB_URL, ha_grub_url)
-            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
+            advanced = user_input.get("advanced_options", {})
+            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
+            self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
+            self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+            self._turn_off_action = advanced.get(CONF_TURN_OFF_ACTION)
 
             if not self._webhook_id:
                 self._webhook_id = webhook.async_generate_id()
@@ -185,14 +187,21 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         )
                     ),
-                    vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
-                    vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-                    ),
                     vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
-                    vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
+                    vol.Required("advanced_options"): section(
+                        vol.Schema(
+                            {
+                                vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
+                            }
+                        ),
+                        {"collapsed": True},
+                    ),
                 }
             ),
             description_placeholders={
