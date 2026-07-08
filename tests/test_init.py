@@ -51,11 +51,12 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-        # Verify that the device is registered with the correct name
+        # Verify that the device is registered with the correct name and connections
         device_registry = dr.async_get(hass)
         device = device_registry.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
         assert device is not None
         assert device.name == "test01 (192.168.1.100)"
+        assert device.connections == {(dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")}
 
         # Verify that pre-boot view is registered and works
         client = await hass_client()
@@ -64,7 +65,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF")
         assert resp.status == 200
         text = await resp.text()
-        assert text == 'set-default="default"'
+        assert text == "default"
 
         resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF?token=invalid_token")
         assert resp.status == 401  # Invalid token
@@ -76,7 +77,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF?token=test_permanent_webhook")
         assert resp.status == 200
         text = await resp.text()
-        assert text == 'set-default="default"'
+        assert text == "default"
 
         # Set next boot override
         entry.runtime_data.next_boot = "Windows"
@@ -85,7 +86,7 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF")
         assert resp.status == 200
         text = await resp.text()
-        assert text == 'set-default="Windows"'
+        assert text == "Windows"
 
         # 3. Test pre-boot query success with override choice and valid token (which should consume it)
         resp = await client.get(
@@ -93,13 +94,13 @@ async def test_setup_unload_and_webhook(hass: HomeAssistant, hass_client) -> Non
         )  # also test dash format mac
         assert resp.status == 200
         text = await resp.text()
-        assert text == 'set-default="Windows"'
+        assert text == "Windows"
 
         # Subsequent request should return "default" because the override was consumed
         resp = await client.get("/api/grubstation/aabbccddeeff?token=test_permanent_webhook")  # test no separator mac
         assert resp.status == 200
         text = await resp.text()
-        assert text == 'set-default="default"'
+        assert text == "default"
 
         # 4. Test permanent Webhook update of boot options
         resp = await client.post(
@@ -186,10 +187,15 @@ async def test_binary_sensor_and_switch_states(hass: HomeAssistant) -> None:
         entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
         binary_sensor_entity_id = next(e.entity_id for e in entities if e.domain == "binary_sensor")
         switch_entity_id = next(e.entity_id for e in entities if e.domain == "switch")
+        sensor_entry = next(e for e in entities if e.domain == "sensor")
 
         # Verify initial state after a successful pair/setup is "on"
         assert hass.states.get(binary_sensor_entity_id).state == "on"
         assert hass.states.get(switch_entity_id).state == "on"
+
+        # Verify the sensor is disabled by default
+        assert sensor_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+        assert hass.states.get(sensor_entry.entity_id) is None
 
         # Trigger update on both entities to pull the mocked status
         await entry.runtime_data.coordinator.async_refresh()

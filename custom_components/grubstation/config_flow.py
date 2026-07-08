@@ -31,6 +31,7 @@ from .const import (
     CONF_DAEMONLESS,
     CONF_HA_DAEMON_URL,
     CONF_HA_GRUB_URL,
+    CONF_HOSTNAME,
     CONF_TURN_OFF_ACTION,
     CONF_UPDATE_GRUB,
     DEFAULT_AGENT_PORT,
@@ -507,7 +508,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_HA_GRUB_URL: self._ha_grub_url,
             CONF_UPDATE_GRUB: self._update_grub,
             CONF_TURN_OFF_ACTION: self._turn_off_action,
-            "hostname": self._hostname,
+            CONF_HOSTNAME: self._hostname,
         }
         if self._is_daemonless:
             title = f"GrubStation ({self._ip_address}) [Manual]"

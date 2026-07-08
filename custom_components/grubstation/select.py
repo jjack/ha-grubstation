@@ -18,9 +18,8 @@ if TYPE_CHECKING:
 
 ENTITY_DESCRIPTIONS = (
     SelectEntityDescription(
-        key="next_boot",
-        name="GrubStation Next Boot Select",
-        icon="mdi:restart",
+        key="boot_option",
+        name="Next Boot Option",
     ),
 )
 

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.const import CONF_IP_ADDRESS, CONF_MAC, CONF_PORT
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GrubStationApiClientAuthenticationError, GrubStationApiClientError
+from .const import ATTR_VERSION, CONF_HOSTNAME, DEFAULT_AGENT_PORT, DOMAIN
+from .helpers import format_display_name
 
 if TYPE_CHECKING:
     from .data import GrubStationConfigEntry
@@ -27,3 +31,24 @@ class GrubStationDataUpdateCoordinator(DataUpdateCoordinator):
             raise ConfigEntryAuthFailed(exception) from exception
         except GrubStationApiClientError as exception:
             raise UpdateFailed(exception) from exception
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information."""
+        host = self.config_entry.data.get(CONF_IP_ADDRESS)
+        hostname = self.config_entry.data.get(CONF_HOSTNAME)
+        port = self.config_entry.data.get(CONF_PORT) or DEFAULT_AGENT_PORT
+        sw_version = self.data.get(ATTR_VERSION) if self.data else None
+        mac = self.config_entry.data.get(CONF_MAC)
+
+        device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.config_entry.entry_id)},
+            name=format_display_name(host, hostname),
+            sw_version=sw_version,
+            manufacturer="GrubStation",
+            model="Boot Selection and Wake On Lan",
+            configuration_url=f"http://{host}:{port}/status",
+        )
+        if mac:
+            device_info["connections"] = {(CONNECTION_NETWORK_MAC, mac)}
+        return device_info

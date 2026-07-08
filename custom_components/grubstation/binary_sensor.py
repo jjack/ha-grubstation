@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
         key="grubstation",
-        name="GrubStation Binary Sensor",
+        name="Agent Status",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
     ),
 )

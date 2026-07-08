@@ -17,6 +17,7 @@ CONF_HA_DAEMON_URL = "ha_daemon_url"
 CONF_HA_GRUB_URL = "ha_grub_url"
 CONF_UPDATE_GRUB = "update_grub"
 CONF_TURN_OFF_ACTION = "turn_off_action"
+CONF_HOSTNAME = "hostname"
 
 DEFAULT_AGENT_PORT = 8081
 DEFAULT_DAEMONLESS = False
