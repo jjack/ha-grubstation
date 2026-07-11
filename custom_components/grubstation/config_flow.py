@@ -40,9 +40,11 @@ from .const import (
     CONF_TURN_OFF_ACTION,
     CONF_UPDATE_GRUB,
     CONF_WOL_BROADCAST,
+    CONF_WOL_PORT,
     DEFAULT_AGENT_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_WOL_BROADCAST,
+    DEFAULT_WOL_PORT,
     DOMAIN,
     LOGGER,
 )
@@ -89,6 +91,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._daemonless_paired: bool = False
         self._paired: str | None = None
         self._daemon_token: str | None = None
+        self._wol_broadcast: str = DEFAULT_WOL_BROADCAST
+        self._wol_port: int = DEFAULT_WOL_PORT
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> config_entries.ConfigFlowResult:
         """Handle zeroconf discovery."""
@@ -428,6 +432,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
             self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
+            self._wol_broadcast = advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
+            self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
             self._port = DEFAULT_AGENT_PORT
             self._is_daemonless = True
             self._turn_off_action = None
@@ -451,6 +457,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
         default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
         default_update_grub = current_advanced.get(CONF_UPDATE_GRUB, True)
+        default_wol_broadcast = current_advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
+        default_wol_port = current_advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
 
         integration = async_get_loaded_integration(self.hass, DOMAIN)
         assert integration.documentation is not None, "Integration documentation URL is not set in manifest.json"
@@ -497,6 +505,22 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                     CONF_UPDATE_GRUB,
                                     default=default_update_grub,
                                 ): selector.BooleanSelector(),
+                                vol.Optional(
+                                    CONF_WOL_BROADCAST,
+                                    default=default_wol_broadcast,
+                                ): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Optional(
+                                    CONF_WOL_PORT,
+                                    default=default_wol_port,
+                                ): selector.NumberSelector(
+                                    selector.NumberSelectorConfig(
+                                        min=1,
+                                        max=65535,
+                                        mode=selector.NumberSelectorMode.BOX,
+                                    ),
+                                ),
                             }
                         ),
                         {"collapsed": True},
@@ -518,18 +542,21 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if not self._api_key:
             self._api_key = secrets.token_hex(API_KEY_LENGTH)
 
-        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+        if not getattr(self, "_ha_daemon_url", None) or not getattr(self, "_ha_grub_url", None):
+            ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+            if not getattr(self, "_ha_daemon_url", None):
+                self._ha_daemon_url = ha_daemon_url
+            if not getattr(self, "_ha_grub_url", None):
+                self._ha_grub_url = ha_grub_url
 
-        self._ha_daemon_url = ha_daemon_url
-        self._ha_grub_url = ha_grub_url
         self._update_grub = getattr(self, "_update_grub", True)
         self._turn_off_action = None
 
         payload_dict = {
-            "ha_daemon_url": ha_daemon_url,
+            "ha_daemon_url": self._ha_daemon_url,
             "webhook_id": self._webhook_id,
             "api_key": self._api_key,
-            "ha_grub_url": f"{ha_grub_url}/api/grubstation/boot",
+            "ha_grub_url": f"{self._ha_grub_url}/api/grubstation/boot",
             "update_grub": self._update_grub,
         }
         payload_str = json.dumps(payload_dict)
@@ -570,11 +597,15 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle daemonless callback."""
         try:
             payload = await request.json()
-            if payload.get("action") == "update_boot_options":
+            LOGGER.debug("Received daemonless webhook callback payload: %s", payload)
+            if payload.get("action") == "update_boot_options" or "boot_options" in payload:
                 self._boot_options = payload.get("boot_options")
                 self._daemonless_paired = True
-        except Exception:  # noqa: BLE001
-            pass
+                LOGGER.info("GrubStation daemonless host successfully paired via webhook!")
+            else:
+                LOGGER.warning("Received daemonless webhook with unexpected action: %s", payload.get("action"))
+        except Exception as exception:  # noqa: BLE001
+            LOGGER.exception("Error handling daemonless webhook callback: %s", exception)
         return web.json_response({"status": "ok"})
 
     @callback
@@ -592,6 +623,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_TURN_OFF_ACTION: self._turn_off_action,
             CONF_HOSTNAME: self._hostname,
             CONF_DAEMON_TOKEN: self._daemon_token,
+            CONF_WOL_BROADCAST: self._wol_broadcast,
+            CONF_WOL_PORT: self._wol_port,
         }
         if self._is_daemonless:
             title = f"GrubStation ({self._ip_address}) [Manual]"
@@ -750,6 +783,7 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
             new_data[CONF_UPDATE_GRUB] = user_input[CONF_UPDATE_GRUB]
             new_data[CONF_TURN_OFF_ACTION] = user_input.get(CONF_TURN_OFF_ACTION)
             new_data[CONF_WOL_BROADCAST] = user_input.get(CONF_WOL_BROADCAST) or DEFAULT_WOL_BROADCAST
+            new_data[CONF_WOL_PORT] = int(user_input.get(CONF_WOL_PORT) or DEFAULT_WOL_PORT)
 
             self.hass.config_entries.async_update_entry(
                 self._config_entry,
@@ -802,6 +836,16 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_WOL_BROADCAST,
                         default=current.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST),
                     ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
+                    vol.Optional(
+                        CONF_WOL_PORT,
+                        default=current.get(CONF_WOL_PORT, DEFAULT_WOL_PORT),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1,
+                            max=65535,
+                            mode=selector.NumberSelectorMode.BOX,
+                        ),
+                    ),
                 }
             ),
             errors=_errors,

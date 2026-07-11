@@ -9,7 +9,15 @@ import wakeonlan
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.const import CONF_MAC
 
-from .const import CONF_DAEMON_TOKEN, CONF_DAEMONLESS, CONF_TURN_OFF_ACTION, CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST
+from .const import (
+    CONF_DAEMON_TOKEN,
+    CONF_DAEMONLESS,
+    CONF_TURN_OFF_ACTION,
+    CONF_WOL_BROADCAST,
+    CONF_WOL_PORT,
+    DEFAULT_WOL_BROADCAST,
+    DEFAULT_WOL_PORT,
+)
 from .entity import GrubStationEntity
 
 if TYPE_CHECKING:
@@ -33,6 +41,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the switch platform."""
+    if entry.data.get(CONF_DAEMONLESS):
+        return
+
     async_add_entities(
         GrubStationSwitch(
             coordinator=entry.runtime_data.coordinator,
@@ -65,8 +76,8 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
         mac = self.coordinator.config_entry.data.get(CONF_MAC)
         if mac:
             broadcast = self.coordinator.config_entry.data.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
-            wake_method = getattr(wakeonlan, "wake", None) or wakeonlan.send_magic_packet
-            await self.hass.async_add_executor_job(wake_method, mac, broadcast)
+            port = self.coordinator.config_entry.data.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
+            await self.hass.async_add_executor_job(lambda: wakeonlan.wake(mac, host=broadcast, port=port))
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **_: Any) -> None:

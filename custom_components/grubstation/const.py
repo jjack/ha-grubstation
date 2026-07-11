@@ -22,12 +22,14 @@ CONF_TURN_OFF_ACTION: Final[str] = "turn_off_action"
 CONF_UPDATE_GRUB: Final[str] = "update_grub"
 CONF_DAEMON_TOKEN: Final[str] = "daemon_token"
 CONF_WOL_BROADCAST: Final[str] = "wol_broadcast"
+CONF_WOL_PORT: Final[str] = "wol_port"
 
 DEFAULT_AGENT_PORT: Final[int] = 8081
 DEFAULT_BOOT_OPTION: Final[str] = "default"
 DEFAULT_DAEMONLESS: Final[bool] = False
 DEFAULT_SERVER_PORT: Final[int] = 8123
 DEFAULT_WOL_BROADCAST: Final[str] = "255.255.255.255"
+DEFAULT_WOL_PORT: Final[int] = 9
 
 API_TIMEOUT_SECONDS: Final[int] = 10
 API_KEY_LENGTH: Final[int] = 32

@@ -262,10 +262,72 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
     assert result4["title"] == "GrubStation (192.168.1.10) [Manual]"
     assert result4["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
     assert result4["data"]["update_grub"] is False
+    assert result4["data"]["wol_broadcast"] == "255.255.255.255"
+    assert result4["data"]["wol_port"] == 9
     assert result4["data"]["boot_options"] == [
         "Ubuntu",
         "Windows Boot Manager",
     ]
+
+
+async def test_config_flow_daemonless_custom_wol(hass: HomeAssistant, hass_client) -> None:
+    """Test the config flow with custom WoL broadcast and port."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+    # Select daemonless type
+    result_type = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "setup_type": "daemonless",
+        },
+    )
+    assert result_type["type"] == "form"
+    assert result_type["step_id"] == "daemonless_config"
+
+    # Fill host info, mac, daemonless=True, custom WoL settings
+    result2 = await hass.config_entries.flow.async_configure(
+        result_type["flow_id"],
+        {
+            "ip_address": "192.168.1.10",
+            "mac": "aa:bb:cc:dd:ee:ff",
+            CONF_ADVANCED_OPTIONS: {
+                "update_grub": False,
+                "wol_broadcast": "192.168.1.255",
+                "wol_port": 7,
+            },
+        },
+    )
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "daemonless_onboarding"
+
+    # Simulate the remote machine sending the pairing webhook callback
+    flow_id = result["flow_id"]
+    flow = hass.config_entries.flow._progress[flow_id]
+    webhook_id = flow._webhook_id
+
+    client = await hass_client()
+    resp = await client.post(
+        f"/api/webhook/{webhook_id}",
+        json={
+            "action": "update_boot_options",
+            "boot_options": ["Ubuntu"],
+        },
+    )
+    assert resp.status == HTTPStatus.OK
+
+    # Click Submit again -> should succeed and create the entry with custom settings
+    result4 = await hass.config_entries.flow.async_configure(
+        result2["flow_id"],
+        {},
+    )
+    assert result4["type"] == "create_entry"
+    assert result4["data"]["wol_broadcast"] == "192.168.1.255"
+    assert result4["data"]["wol_port"] == 7
 
 
 async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:

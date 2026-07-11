@@ -377,7 +377,7 @@ async def test_switch_turn_on(hass: HomeAssistant) -> None:
 
         # Turn on the switch
         await hass.services.async_call("switch", "turn_on", {"entity_id": switch_entity_id}, blocking=True)
-        mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF", "255.255.255.255")
+        mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF", host="255.255.255.255", port=9)
 
 
 async def test_select_restore_state(hass: HomeAssistant) -> None:
@@ -420,3 +420,109 @@ async def test_select_restore_state(hass: HomeAssistant) -> None:
 
         # Check that runtime_data.next_boot was restored to "Linux"
         assert entry.runtime_data.next_boot == "Linux"
+
+
+async def test_daemonless_button_instead_of_switch(hass: HomeAssistant) -> None:
+    """Test that daemonless entries setup a button instead of a switch, and pressing it wakes the host."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "webhook_id": "test_permanent_webhook",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "http://127.0.0.1:8123",
+            "ha_grub_url": "http://127.0.0.1:8123",
+            "run_update_grub": True,
+            "boot_options": ["Linux"],
+            "hostname": "wyse04",
+            "daemonless": True,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
+            return_value={
+                "os": "Linux",
+                "service_manager": "systemd",
+                "status": "running",
+                "version": "1.0.0",
+            },
+        ),
+        patch("custom_components.grubstation.button.wakeonlan.wake") as mock_wake,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        entity_registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+
+        # There should be no switch entity
+        switch_entities = [e for e in entities if e.domain == "switch"]
+        assert len(switch_entities) == 0
+
+        # There should be a button entity
+        button_entity_id = next(e.entity_id for e in entities if e.domain == "button")
+        assert button_entity_id is not None
+
+        # Press the button
+        await hass.services.async_call("button", "press", {"entity_id": button_entity_id}, blocking=True)
+        mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF", host="255.255.255.255", port=9)
+
+
+async def test_daemonless_button_custom_wol_parameters(hass: HomeAssistant) -> None:
+    """Test that a daemonless entry button correctly uses custom WoL parameters."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "webhook_id": "test_permanent_webhook",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "http://127.0.0.1:8123",
+            "ha_grub_url": "http://127.0.0.1:8123",
+            "run_update_grub": True,
+            "boot_options": ["Linux"],
+            "hostname": "wyse04",
+            "daemonless": True,
+            "wol_broadcast": "192.168.1.255",
+            "wol_port": 7,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
+            return_value={
+                "os": "Linux",
+                "service_manager": "systemd",
+                "status": "running",
+                "version": "1.0.0",
+            },
+        ),
+        patch("custom_components.grubstation.button.wakeonlan.wake") as mock_wake,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        entity_registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+
+        # There should be a button entity
+        button_entity_id = next(e.entity_id for e in entities if e.domain == "button")
+        assert button_entity_id is not None
+
+        # Press the button
+        await hass.services.async_call("button", "press", {"entity_id": button_entity_id}, blocking=True)
+        mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF", host="192.168.1.255", port=7)
