@@ -38,8 +38,8 @@ async def test_api_pair() -> None:
     result = await client.async_pair(
         webhook_id="test_webhook",
         api_key="test_key",
-        ha_daemon_url="http://127.0.0.1:8123",
-        ha_grub_url="http://127.0.0.1:8123",
+        daemon_url="http://127.0.0.1:8123",
+        grub_url="http://127.0.0.1:8123",
         update_grub=True,
     )
     assert result == {"paired": True}
@@ -143,8 +143,8 @@ async def test_api_pair_pin_required() -> None:
         await client.async_pair(
             webhook_id="test_webhook",
             api_key="test_key",
-            ha_daemon_url="http://127.0.0.1:8123",
-            ha_grub_url="http://127.0.0.1:8123",
+            daemon_url="http://127.0.0.1:8123",
+            grub_url="http://127.0.0.1:8123",
             update_grub=True,
         )
 
@@ -176,8 +176,8 @@ async def test_api_pair_invalid_pin() -> None:
             pin="123456",
             webhook_id="test_webhook",
             api_key="test_key",
-            ha_daemon_url="http://127.0.0.1:8123",
-            ha_grub_url="http://127.0.0.1:8123",
+            daemon_url="http://127.0.0.1:8123",
+            grub_url="http://127.0.0.1:8123",
             update_grub=True,
         )
 
@@ -218,8 +218,8 @@ async def test_api_pair_with_pin_success() -> None:
         pin="123456",
         webhook_id="test_webhook",
         api_key="test_key",
-        ha_daemon_url="http://127.0.0.1:8123",
-        ha_grub_url="http://127.0.0.1:8123",
+        daemon_url="http://127.0.0.1:8123",
+        grub_url="http://127.0.0.1:8123",
         update_grub=True,
     )
     assert result == {

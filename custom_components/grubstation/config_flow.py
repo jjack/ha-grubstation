@@ -5,14 +5,15 @@ from __future__ import annotations
 import contextlib
 import json
 import secrets
+import socket
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from aiohttp import web
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.components import webhook
-from homeassistant.components.network.util import async_get_source_ip
 from homeassistant.const import CONF_API_KEY, CONF_IP_ADDRESS, CONF_MAC, CONF_PIN, CONF_PORT, CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
@@ -33,9 +34,9 @@ from .const import (
     CONF_ADVANCED_OPTIONS,
     CONF_BOOT_OPTIONS,
     CONF_DAEMON_TOKEN,
+    CONF_DAEMON_URL,
     CONF_DAEMONLESS,
-    CONF_HA_DAEMON_URL,
-    CONF_HA_GRUB_URL,
+    CONF_GRUB_URL,
     CONF_HOSTNAME,
     CONF_TURN_OFF_ACTION,
     CONF_UPDATE_GRUB,
@@ -131,14 +132,14 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.ConfigFlowResult:
         """Confirm zeroconf discovery and enter PIN."""
         _errors = {}
-        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+        daemon_url, grub_url = await self._async_generate_urls()
 
         if user_input is not None:
             pin = user_input[CONF_PIN]
             self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
-            self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
-            self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+            self._ha_daemon_url = advanced.get(CONF_DAEMON_URL, daemon_url)
+            self._ha_grub_url = advanced.get(CONF_GRUB_URL, grub_url)
             self._wol_broadcast = advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
             self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
 
@@ -164,8 +165,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     pin=pin,
                     webhook_id=self._webhook_id,
                     api_key=self._api_key,
-                    ha_daemon_url=self._ha_daemon_url,
-                    ha_grub_url=self._ha_grub_url,
+                    daemon_url=self._ha_daemon_url,
+                    grub_url=self._ha_grub_url,
                     update_grub=self._update_grub,
                 )
             except GrubStationApiConflictError:
@@ -211,10 +212,10 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
-                                vol.Required(CONF_HA_DAEMON_URL, default=ha_daemon_url): selector.TextSelector(
+                                vol.Required(CONF_DAEMON_URL, default=daemon_url): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
-                                vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
+                                vol.Required(CONF_GRUB_URL, default=grub_url): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
                                 vol.Optional(CONF_WOL_BROADCAST, default=DEFAULT_WOL_BROADCAST): selector.TextSelector(
@@ -281,7 +282,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.ConfigFlowResult:
         """Configure a standard agent host."""
         _errors: dict[str, str] = {}
-        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+        daemon_url, grub_url = await self._async_generate_urls()
 
         if user_input is not None:
             self._ip_address = user_input[CONF_IP_ADDRESS]
@@ -289,8 +290,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
             self._port = int(advanced.get(CONF_PORT, DEFAULT_AGENT_PORT))
-            self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
-            self._ha_grub_url = getattr(self, "_ha_grub_url", None) or advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+            self._ha_daemon_url = advanced.get(CONF_DAEMON_URL, daemon_url)
+            self._ha_grub_url = getattr(self, "_ha_grub_url", None) or advanced.get(CONF_GRUB_URL, grub_url)
             self._wol_broadcast = advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
             self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
             self._is_daemonless = False
@@ -321,8 +322,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         pin=pin,
                         webhook_id=self._webhook_id,
                         api_key=self._api_key,
-                        ha_daemon_url=self._ha_daemon_url,
-                        ha_grub_url=self._ha_grub_url,
+                        daemon_url=self._ha_daemon_url,
+                        grub_url=self._ha_grub_url,
                         update_grub=self._update_grub,
                     )
                 except GrubStationApiConflictError:
@@ -355,8 +356,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Defaults for the advanced options
         current_advanced = (user_input or {}).get(CONF_ADVANCED_OPTIONS, {})
         default_port = current_advanced.get(CONF_PORT, DEFAULT_AGENT_PORT)
-        default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
-        default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+        default_ha_daemon = current_advanced.get(CONF_DAEMON_URL, daemon_url)
+        default_ha_grub = current_advanced.get(CONF_GRUB_URL, grub_url)
         default_update_grub = (user_input or {}).get(CONF_UPDATE_GRUB, True)
         default_wol_broadcast = current_advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
         default_wol_port = current_advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
@@ -405,13 +406,13 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                     ),
                                 ),
                                 vol.Required(
-                                    CONF_HA_DAEMON_URL,
+                                    CONF_DAEMON_URL,
                                     default=default_ha_daemon,
                                 ): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
                                 vol.Required(
-                                    CONF_HA_GRUB_URL,
+                                    CONF_GRUB_URL,
                                     default=default_ha_grub,
                                 ): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
@@ -447,7 +448,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.ConfigFlowResult:
         """Configure a daemonless host."""
         _errors: dict[str, str] = {}
-        ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+        daemon_url, grub_url = await self._async_generate_urls()
 
         if user_input is not None:
             self._ip_address = user_input[CONF_IP_ADDRESS]
@@ -456,8 +457,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
 
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
-            self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
-            self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+            self._ha_daemon_url = advanced.get(CONF_DAEMON_URL, daemon_url)
+            self._ha_grub_url = advanced.get(CONF_GRUB_URL, grub_url)
             self._wol_broadcast = advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
             self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
             self._port = DEFAULT_AGENT_PORT
@@ -477,8 +478,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Defaults for the advanced options
         current_advanced = (user_input or {}).get(CONF_ADVANCED_OPTIONS, {})
-        default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
-        default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
+        default_ha_daemon = current_advanced.get(CONF_DAEMON_URL, daemon_url)
+        default_ha_grub = current_advanced.get(CONF_GRUB_URL, grub_url)
         default_update_grub = (user_input or {}).get(CONF_UPDATE_GRUB, True)
         default_wol_broadcast = current_advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
         default_wol_port = current_advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
@@ -521,13 +522,13 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         vol.Schema(
                             {
                                 vol.Required(
-                                    CONF_HA_DAEMON_URL,
+                                    CONF_DAEMON_URL,
                                     default=default_ha_daemon,
                                 ): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
                                 vol.Required(
-                                    CONF_HA_GRUB_URL,
+                                    CONF_GRUB_URL,
                                     default=default_ha_grub,
                                 ): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
@@ -570,19 +571,19 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._api_key = secrets.token_hex(API_KEY_LENGTH)
 
         if not getattr(self, "_ha_daemon_url", None) or not getattr(self, "_ha_grub_url", None):
-            ha_daemon_url, ha_grub_url = await self._async_generate_urls()
+            daemon_url, grub_url = await self._async_generate_urls()
             if not getattr(self, "_ha_daemon_url", None):
-                self._ha_daemon_url = ha_daemon_url
+                self._ha_daemon_url = daemon_url
             if not getattr(self, "_ha_grub_url", None):
-                self._ha_grub_url = ha_grub_url
+                self._ha_grub_url = grub_url
 
         self._update_grub = getattr(self, "_update_grub", True)
 
         payload_dict = {
-            "ha_daemon_url": self._ha_daemon_url,
+            "daemon_url": self._ha_daemon_url,
             "webhook_id": self._webhook_id,
             "api_key": self._api_key,
-            "ha_grub_url": f"{self._ha_grub_url}/api/grubstation/boot",
+            "grub_url": f"{self._ha_grub_url}/api/grubstation/boot",
             "update_grub": self._update_grub,
         }
         payload_str = json.dumps(payload_dict)
@@ -643,8 +644,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_MAC: self._mac,
             CONF_WEBHOOK_ID: self._webhook_id,
             CONF_API_KEY: self._api_key,
-            CONF_HA_DAEMON_URL: self._ha_daemon_url,
-            CONF_HA_GRUB_URL: self._ha_grub_url,
+            CONF_DAEMON_URL: self._ha_daemon_url,
+            CONF_GRUB_URL: self._ha_grub_url,
             CONF_UPDATE_GRUB: self._update_grub,
             CONF_TURN_OFF_ACTION: self._turn_off_action,
             CONF_HOSTNAME: self._hostname,
@@ -666,6 +667,33 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_generate_urls(self) -> tuple[str, str]:
         """Generate default URLs and options for HA daemon and GRUB."""
+
+        # Resolve local hostname (e.g. homeassistant.local)
+        ha_host = "homeassistant.local"
+        with contextlib.suppress(Exception):
+            sys_hostname = socket.gethostname()
+            # Exclude docker container ID lookalikes (12-char hex)
+            if (
+                sys_hostname
+                and sys_hostname != "localhost"
+                and not (len(sys_hostname) == 12 and all(c in "0123456789abcdef" for c in sys_hostname))
+            ):
+                ha_host = f"{sys_hostname}.local"
+
+        def _prefer_hostname(url_str: str | None, default_host: str) -> str | None:
+            if not url_str:
+                return url_str
+            try:
+                parsed = urlparse(url_str)
+                # If the hostname is an IP address, swap it with the local hostname
+                if parsed.hostname and is_ip_address(parsed.hostname):
+                    port_suffix = f":{parsed.port}" if parsed.port is not None else ""
+                    new_netloc = f"{default_host}{port_suffix}"
+                    return urlunparse(parsed._replace(netloc=new_netloc))
+            except Exception:  # noqa: BLE001
+                pass
+            return url_str
+
         # 1. Fetch available configured URLs (exactly once per type)
         secure_url = None
         with contextlib.suppress(network.NoURLAvailableError):
@@ -675,42 +703,28 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         with contextlib.suppress(network.NoURLAvailableError):
             insecure_url = network.get_url(self.hass, require_ssl=False, allow_internal=True, allow_external=False)
 
+        # Prefer hostname if they return IP addresses
+        secure_url = _prefer_hostname(secure_url, ha_host)
+        insecure_url = _prefer_hostname(insecure_url, ha_host)
+
         # GrubStation prefers to use HTTPs to talk to Home Assistant (if available) but GRUB requires
         # HTTP for the boot portion
-        ha_daemon_url = secure_url or insecure_url
+        daemon_url = secure_url or insecure_url
         grub_url = insecure_url
 
         # 2. Apply fallback cascade logic if either default URL is missing
-        if not ha_daemon_url or not grub_url:
-            ha_ip = None
-            with contextlib.suppress(Exception):
-                ha_ip = await async_get_source_ip(self.hass, target_ip=None)
-
-            if not ha_ip:
-                api = getattr(self.hass.config, "api", None)
-                if api and getattr(api, "host", None) not in ("0.0.0.0", "::", None):
-                    ha_ip = api.host
-
-            if not ha_ip:
-                ha_ip = "127.0.0.1"
-                LOGGER.warning(
-                    "Could not auto-detect Home Assistant IP address. "
-                    "Defaulting to %s — you may need to edit "
-                    "the daemon/grub URLs in the integration options if connection fails.",
-                    ha_ip,
-                )
-
+        if not daemon_url or not grub_url:
             port = DEFAULT_SERVER_PORT
             api = getattr(self.hass.config, "api", None)
             if api and getattr(api, "port", None):
                 port = api.port
 
-            if not ha_daemon_url:
-                ha_daemon_url = f"http://{ha_ip}:{port}"
+            if not daemon_url:
+                daemon_url = f"http://{ha_host}:{port}"
             if not grub_url:
-                grub_url = f"http://{ha_ip}:{port}"
+                grub_url = f"http://{ha_host}:{port}"
 
-        return ha_daemon_url, grub_url
+        return daemon_url, grub_url
 
     async def async_step_reauth(
         self,
@@ -748,8 +762,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     pin=pin,
                     webhook_id=reauth_entry.data[CONF_WEBHOOK_ID],
                     api_key=reauth_entry.data[CONF_API_KEY],
-                    ha_daemon_url=reauth_entry.data[CONF_HA_DAEMON_URL],
-                    ha_grub_url=reauth_entry.data[CONF_HA_GRUB_URL],
+                    daemon_url=reauth_entry.data[CONF_DAEMON_URL],
+                    grub_url=reauth_entry.data[CONF_GRUB_URL],
                     update_grub=reauth_entry.data.get(CONF_UPDATE_GRUB, True),
                 )
             except GrubStationApiInvalidPinError, GrubStationApiPinRequiredError:
@@ -804,8 +818,8 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             # Merge changes into the config entry data
             new_data = dict(self._config_entry.data)
-            new_data[CONF_HA_DAEMON_URL] = user_input[CONF_HA_DAEMON_URL]
-            new_data[CONF_HA_GRUB_URL] = user_input[CONF_HA_GRUB_URL]
+            new_data[CONF_DAEMON_URL] = user_input[CONF_DAEMON_URL]
+            new_data[CONF_GRUB_URL] = user_input[CONF_GRUB_URL]
             new_data[CONF_UPDATE_GRUB] = user_input[CONF_UPDATE_GRUB]
             new_data[CONF_TURN_OFF_ACTION] = user_input.get(CONF_TURN_OFF_ACTION)
             new_data[CONF_WOL_BROADCAST] = user_input.get(CONF_WOL_BROADCAST) or DEFAULT_WOL_BROADCAST
@@ -831,8 +845,8 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
                         )
                         await client.async_update_config(
                             new_data.get(CONF_DAEMON_TOKEN, ""),
-                            ha_daemon_url=new_data[CONF_HA_DAEMON_URL],
-                            ha_grub_url=new_data[CONF_HA_GRUB_URL],
+                            daemon_url=new_data[CONF_DAEMON_URL],
+                            grub_url=new_data[CONF_GRUB_URL],
                             update_grub=new_data[CONF_UPDATE_GRUB],
                         )
                     except GrubStationApiClientError as err:
@@ -847,12 +861,12 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_HA_DAEMON_URL,
-                        default=current.get(CONF_HA_DAEMON_URL, ""),
+                        CONF_DAEMON_URL,
+                        default=current.get(CONF_DAEMON_URL, ""),
                     ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
                     vol.Required(
-                        CONF_HA_GRUB_URL,
-                        default=current.get(CONF_HA_GRUB_URL, ""),
+                        CONF_GRUB_URL,
+                        default=current.get(CONF_GRUB_URL, ""),
                     ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)),
                     vol.Required(
                         CONF_UPDATE_GRUB,
