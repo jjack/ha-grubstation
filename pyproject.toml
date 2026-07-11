@@ -27,7 +27,7 @@ hass = [
     "homeassistant>=2026.3",
     "isal>=1.8.0",
     "pymicro-vad==1.0.1",
-    "pyturbojpeg==1.8.3",
+    "pyturbojpeg==2.4.0",
     "wakeonlan>=1.1.6",
     "zlib-ng==1.0.0",
 ]
