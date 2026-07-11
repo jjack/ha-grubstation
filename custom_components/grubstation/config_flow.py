@@ -134,11 +134,13 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             pin = user_input[CONF_PIN]
+            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
+            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
-            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
-            self._turn_off_action = advanced.get(CONF_TURN_OFF_ACTION)
+            self._wol_broadcast = advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
+            self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
 
             if not self._webhook_id:
                 self._webhook_id = webhook.async_generate_id()
@@ -205,6 +207,8 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         )
                     ),
+                    vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
+                    vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
                     vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
@@ -214,8 +218,16 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                 vol.Required(CONF_HA_GRUB_URL, default=ha_grub_url): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
-                                vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
-                                vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
+                                vol.Optional(CONF_WOL_BROADCAST, default=DEFAULT_WOL_BROADCAST): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Optional(CONF_WOL_PORT, default=DEFAULT_WOL_PORT): selector.NumberSelector(
+                                    selector.NumberSelectorConfig(
+                                        min=1,
+                                        max=65535,
+                                        mode=selector.NumberSelectorMode.BOX,
+                                    ),
+                                ),
                             }
                         ),
                         {"collapsed": True},
@@ -275,12 +287,14 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._ip_address = user_input[CONF_IP_ADDRESS]
 
+            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
+            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
             self._port = int(advanced.get(CONF_PORT, DEFAULT_AGENT_PORT))
-            self._turn_off_action = advanced.get(CONF_TURN_OFF_ACTION)
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = getattr(self, "_ha_grub_url", None) or advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
-            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
+            self._wol_broadcast = advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
+            self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
             self._is_daemonless = False
 
             if not is_ip_address(self._ip_address):
@@ -345,8 +359,10 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         default_port = current_advanced.get(CONF_PORT, DEFAULT_AGENT_PORT)
         default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
         default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
-        default_update_grub = current_advanced.get(CONF_UPDATE_GRUB, True)
-        default_turn_off = current_advanced.get(CONF_TURN_OFF_ACTION, vol.UNDEFINED)
+        default_update_grub = (user_input or {}).get(CONF_UPDATE_GRUB, True)
+        default_turn_off = (user_input or {}).get(CONF_TURN_OFF_ACTION, vol.UNDEFINED)
+        default_wol_broadcast = current_advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
+        default_wol_port = current_advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
 
         integration = async_get_loaded_integration(self.hass, DOMAIN)
         assert integration.documentation is not None, "Integration documentation URL is not set in manifest.json"
@@ -374,6 +390,14 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         )
                     ),
+                    vol.Required(
+                        CONF_UPDATE_GRUB,
+                        default=default_update_grub,
+                    ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_TURN_OFF_ACTION,
+                        default=default_turn_off,
+                    ): selector.ActionSelector(),
                     vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
@@ -399,14 +423,22 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                 ): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
-                                vol.Required(
-                                    CONF_UPDATE_GRUB,
-                                    default=default_update_grub,
-                                ): selector.BooleanSelector(),
                                 vol.Optional(
-                                    CONF_TURN_OFF_ACTION,
-                                    default=default_turn_off,
-                                ): selector.ActionSelector(),
+                                    CONF_WOL_BROADCAST,
+                                    default=default_wol_broadcast,
+                                ): selector.TextSelector(
+                                    selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+                                ),
+                                vol.Optional(
+                                    CONF_WOL_PORT,
+                                    default=default_wol_port,
+                                ): selector.NumberSelector(
+                                    selector.NumberSelectorConfig(
+                                        min=1,
+                                        max=65535,
+                                        mode=selector.NumberSelectorMode.BOX,
+                                    ),
+                                ),
                             }
                         ),
                         {"collapsed": True},
@@ -427,11 +459,11 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._ip_address = user_input[CONF_IP_ADDRESS]
             self._mac = user_input.get(CONF_MAC)
+            self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
 
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
-            self._update_grub = advanced.get(CONF_UPDATE_GRUB, True)
             self._wol_broadcast = advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
             self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
             self._port = DEFAULT_AGENT_PORT
@@ -440,15 +472,13 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
             if not is_ip_address(self._ip_address):
                 _errors[CONF_IP_ADDRESS] = "invalid_ip"
+            elif not self._mac:
+                _errors[CONF_MAC] = "mac_required_for_daemonless"
             else:
-                if self._mac:
-                    normalized_mac = normalize_mac(self._mac)
-                    await self.async_set_unique_id(normalized_mac)
-                    self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
-                    self._mac = normalized_mac
-                else:
-                    await self.async_set_unique_id(self._ip_address)
-                    self._abort_if_unique_id_configured()
+                normalized_mac = normalize_mac(self._mac)
+                await self.async_set_unique_id(normalized_mac)
+                self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
+                self._mac = normalized_mac
 
                 return await self.async_step_daemonless_onboarding()
 
@@ -456,7 +486,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         current_advanced = (user_input or {}).get(CONF_ADVANCED_OPTIONS, {})
         default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
         default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
-        default_update_grub = current_advanced.get(CONF_UPDATE_GRUB, True)
+        default_update_grub = (user_input or {}).get(CONF_UPDATE_GRUB, True)
         default_wol_broadcast = current_advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
         default_wol_port = current_advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
 
@@ -478,7 +508,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         ),
                     ),
-                    vol.Optional(
+                    vol.Required(
                         CONF_MAC,
                         default=(user_input or {}).get(CONF_MAC, vol.UNDEFINED),
                     ): selector.TextSelector(
@@ -486,6 +516,10 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.TEXT,
                         ),
                     ),
+                    vol.Required(
+                        CONF_UPDATE_GRUB,
+                        default=default_update_grub,
+                    ): selector.BooleanSelector(),
                     vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
@@ -501,10 +535,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                 ): selector.TextSelector(
                                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                                 ),
-                                vol.Required(
-                                    CONF_UPDATE_GRUB,
-                                    default=default_update_grub,
-                                ): selector.BooleanSelector(),
                                 vol.Optional(
                                     CONF_WOL_BROADCAST,
                                     default=default_wol_broadcast,

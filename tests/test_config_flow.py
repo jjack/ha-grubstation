@@ -47,9 +47,11 @@ async def test_config_flow(hass: HomeAssistant) -> None:
             {
                 "ip_address": "127.0.0.1",
                 "pin": "123456",
+                "update_grub": False,
                 CONF_ADVANCED_OPTIONS: {
                     "port": 8081,
-                    "update_grub": False,
+                    "wol_broadcast": "192.168.1.255",
+                    "wol_port": 7,
                 },
             },
         )
@@ -58,6 +60,8 @@ async def test_config_flow(hass: HomeAssistant) -> None:
         assert result2["data"]["update_grub"] is False
         assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
         assert result2["data"]["daemon_token"] == "test_daemon_token"
+        assert result2["data"]["wol_broadcast"] == "192.168.1.255"
+        assert result2["data"]["wol_port"] == 7
         assert mock_pair.call_args.kwargs["pin"] == "123456"
         assert mock_pair.call_args.kwargs["update_grub"] is False
 
@@ -218,9 +222,8 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
         {
             "ip_address": "192.168.1.10",
             "mac": "aa:bb:cc:dd:ee:ff",
-            CONF_ADVANCED_OPTIONS: {
-                "update_grub": False,
-            },
+            "update_grub": False,
+            CONF_ADVANCED_OPTIONS: {},
         },
     )
     assert result2["type"] == "form"
@@ -270,6 +273,40 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
     ]
 
 
+async def test_config_flow_daemonless_missing_mac(hass: HomeAssistant) -> None:
+    """Test that daemonless flow requires a MAC address."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+    # Select daemonless type
+    result_type = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "setup_type": "daemonless",
+        },
+    )
+    assert result_type["type"] == "form"
+    assert result_type["step_id"] == "daemonless_config"
+
+    # Fill host info, leave mac empty
+    result2 = await hass.config_entries.flow.async_configure(
+        result_type["flow_id"],
+        {
+            "ip_address": "192.168.1.10",
+            "mac": "",
+            "update_grub": False,
+            CONF_ADVANCED_OPTIONS: {},
+        },
+    )
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "daemonless_config"
+    assert result2["errors"] == {"mac": "mac_required_for_daemonless"}
+
+
 async def test_config_flow_daemonless_custom_wol(hass: HomeAssistant, hass_client) -> None:
     """Test the config flow with custom WoL broadcast and port."""
     assert await async_setup_component(hass, "http", {})
@@ -295,8 +332,8 @@ async def test_config_flow_daemonless_custom_wol(hass: HomeAssistant, hass_clien
         {
             "ip_address": "192.168.1.10",
             "mac": "aa:bb:cc:dd:ee:ff",
+            "update_grub": False,
             CONF_ADVANCED_OPTIONS: {
-                "update_grub": False,
                 "wol_broadcast": "192.168.1.255",
                 "wol_port": 7,
             },
@@ -373,10 +410,12 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
             result["flow_id"],
             {
                 "pin": "123456",
+                "update_grub": True,
                 CONF_ADVANCED_OPTIONS: {
                     "ha_daemon_url": "https://my-ha.duckdns.org:8123",
                     "ha_grub_url": "http://10.15.0.5:8123",
-                    "update_grub": True,
+                    "wol_broadcast": "192.168.1.255",
+                    "wol_port": 7,
                 },
             },
         )
@@ -388,6 +427,8 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         assert result2["data"]["ha_grub_url"] == "http://10.15.0.5:8123"
         assert result2["data"]["update_grub"] is True
         assert result2["data"]["daemon_token"] == "test_daemon_token"
+        assert result2["data"]["wol_broadcast"] == "192.168.1.255"
+        assert result2["data"]["wol_port"] == 7
         assert mock_pair.call_args.kwargs["pin"] == "123456"
         assert mock_pair.call_args.kwargs["update_grub"] is True
 
@@ -465,9 +506,8 @@ async def test_config_flow_zeroconf_already_paired(hass: HomeAssistant) -> None:
             result["flow_id"],
             {
                 "pin": "123456",
-                CONF_ADVANCED_OPTIONS: {
-                    "update_grub": True,
-                },
+                "update_grub": True,
+                CONF_ADVANCED_OPTIONS: {},
             },
         )
         assert result2["type"] == "form"
