@@ -41,7 +41,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the switch platform."""
-    if entry.data.get(CONF_DAEMONLESS):
+    if entry.data.get(CONF_DAEMONLESS) and not entry.data.get(CONF_TURN_OFF_ACTION):
         return
 
     async_add_entities(
@@ -69,6 +69,8 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return true if the switch is on."""
+        if self.coordinator.config_entry.data.get(CONF_DAEMONLESS):
+            return self.coordinator.data.get("status") == "running" if self.coordinator.data else False
         return self.coordinator.last_update_success
 
     async def async_turn_on(self, **_: Any) -> None:
@@ -78,6 +80,9 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
             broadcast = self.coordinator.config_entry.data.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
             port = self.coordinator.config_entry.data.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
             await self.hass.async_add_executor_job(lambda: wakeonlan.wake(mac, host=broadcast, port=port))
+            if self.coordinator.config_entry.data.get(CONF_DAEMONLESS):
+                current_data = self.coordinator.data or {}
+                self.coordinator.async_set_updated_data({**current_data, "status": "running"})
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **_: Any) -> None:
@@ -86,6 +91,9 @@ class GrubStationSwitch(GrubStationEntity, SwitchEntity):
         if turn_off_action and "." in turn_off_action:
             domain, service = turn_off_action.split(".", 1)
             await self.hass.services.async_call(domain, service, {})
+            if self.coordinator.config_entry.data.get(CONF_DAEMONLESS):
+                current_data = self.coordinator.data or {}
+                self.coordinator.async_set_updated_data({**current_data, "status": "stopped"})
         elif not self.coordinator.config_entry.data.get(CONF_DAEMONLESS):
             await self.coordinator.config_entry.runtime_data.client.async_shutdown(
                 daemon_token=self.coordinator.config_entry.data.get(CONF_DAEMON_TOKEN)

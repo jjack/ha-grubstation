@@ -223,6 +223,7 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
             "ip_address": "192.168.1.10",
             "mac": "aa:bb:cc:dd:ee:ff",
             "update_grub": False,
+            "turn_off_action": "script.my_custom_shutdown",
             CONF_ADVANCED_OPTIONS: {},
         },
     )
@@ -265,6 +266,7 @@ async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
     assert result4["title"] == "GrubStation (192.168.1.10) [Manual]"
     assert result4["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
     assert result4["data"]["update_grub"] is False
+    assert result4["data"]["turn_off_action"] == "script.my_custom_shutdown"
     assert result4["data"]["wol_broadcast"] == "255.255.255.255"
     assert result4["data"]["wol_port"] == 9
     assert result4["data"]["boot_options"] == [
@@ -299,6 +301,7 @@ async def test_config_flow_daemonless_missing_mac(hass: HomeAssistant) -> None:
             "ip_address": "192.168.1.10",
             "mac": "",
             "update_grub": False,
+            "turn_off_action": "script.my_custom_shutdown",
             CONF_ADVANCED_OPTIONS: {},
         },
     )
@@ -333,6 +336,7 @@ async def test_config_flow_daemonless_custom_wol(hass: HomeAssistant, hass_clien
             "ip_address": "192.168.1.10",
             "mac": "aa:bb:cc:dd:ee:ff",
             "update_grub": False,
+            "turn_off_action": "script.my_custom_shutdown",
             CONF_ADVANCED_OPTIONS: {
                 "wol_broadcast": "192.168.1.255",
                 "wol_port": 7,
@@ -528,7 +532,6 @@ async def test_options_flow_update_settings(hass: HomeAssistant) -> None:
             "ha_daemon_url": "https://ha.local:8123",
             "ha_grub_url": "http://10.0.0.1:8123",
             "update_grub": True,
-            "turn_off_action": None,
         },
         unique_id="aa:bb:cc:dd:ee:ff",
     )
@@ -547,48 +550,13 @@ async def test_options_flow_update_settings(hass: HomeAssistant) -> None:
                 "ha_daemon_url": "https://new-ha.local:8123",
                 "ha_grub_url": "http://10.0.0.2:8123",
                 "update_grub": False,
-                "turn_off_action": "script.shutdown_pc",
             },
         )
     assert result2["type"] == "create_entry"
     assert entry.data["ha_daemon_url"] == "https://new-ha.local:8123"
     assert entry.data["ha_grub_url"] == "http://10.0.0.2:8123"
     assert entry.data["update_grub"] is False
-    assert entry.data["turn_off_action"] == "script.shutdown_pc"
     mock_update.assert_awaited_once()
-
-
-async def test_options_flow_clear_turn_off_action(hass: HomeAssistant) -> None:
-    """Test that options flow can clear turn_off_action for non-daemonless entries."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "webhook_id": "test_webhook_id",
-            "api_key": "test_api_key",
-            "ha_daemon_url": "https://ha.local:8123",
-            "ha_grub_url": "http://10.0.0.1:8123",
-            "update_grub": True,
-            "turn_off_action": "script.shutdown_pc",
-        },
-        unique_id="aa:bb:cc:dd:ee:ff",
-    )
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result2 = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        {
-            "ha_daemon_url": "https://ha.local:8123",
-            "ha_grub_url": "http://10.0.0.1:8123",
-            "update_grub": True,
-            # turn_off_action omitted -> should be cleared to None
-        },
-    )
-    assert result2["type"] == "create_entry"
-    assert entry.data["turn_off_action"] is None
 
 
 async def test_options_flow_daemon_sync_failure(hass: HomeAssistant) -> None:
@@ -605,7 +573,6 @@ async def test_options_flow_daemon_sync_failure(hass: HomeAssistant) -> None:
             "ha_daemon_url": "https://ha.local:8123",
             "ha_grub_url": "http://10.0.0.1:8123",
             "update_grub": True,
-            "turn_off_action": None,
             "daemon_token": "test_token",
         },
         unique_id="aa:bb:cc:dd:ee:ff",

@@ -276,62 +276,6 @@ async def test_switch_turn_off_default(hass: HomeAssistant) -> None:
         mock_shutdown.assert_called_once_with(daemon_token="test_daemon_token")
 
 
-async def test_switch_turn_off_custom_action(hass: HomeAssistant) -> None:
-    """Test switch turn off calls custom Home Assistant service call."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "AA:BB:CC:DD:EE:FF",
-            "webhook_id": "test_permanent_webhook",
-            "api_key": "test_api_key",
-            "ha_daemon_url": "http://127.0.0.1:8123",
-            "ha_grub_url": "http://127.0.0.1:8123",
-            "run_update_grub": True,
-            "boot_options": ["Linux"],
-            "hostname": "wyse04",
-            "turn_off_action": "script.my_custom_shutdown",
-            "daemon_token": "test_daemon_token",
-        },
-    )
-    entry.add_to_hass(hass)
-
-    # Register a mock service for script.my_custom_shutdown
-    mock_service_calls = []
-
-    async def mock_service_handler(call) -> None:
-        mock_service_calls.append(call)
-
-    hass.services.async_register("script", "my_custom_shutdown", mock_service_handler)
-
-    with (
-        patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
-            return_value={
-                "os": "Linux",
-                "service_manager": "systemd",
-                "status": "running",
-                "version": "1.0.0",
-            },
-        ),
-    ):
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-        # Retrieve switch entity
-        entity_registry = er.async_get(hass)
-        entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-        switch_entity_id = next(e.entity_id for e in entities if e.domain == "switch")
-
-        # Turn off the switch
-        await hass.services.async_call("switch", "turn_off", {"entity_id": switch_entity_id}, blocking=True)
-        assert len(mock_service_calls) == 1
-
-
 async def test_switch_turn_on(hass: HomeAssistant) -> None:
     """Test switch turn on."""
     assert await async_setup_component(hass, "http", {})
@@ -526,3 +470,74 @@ async def test_daemonless_button_custom_wol_parameters(hass: HomeAssistant) -> N
         # Press the button
         await hass.services.async_call("button", "press", {"entity_id": button_entity_id}, blocking=True)
         mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF", host="192.168.1.255", port=7)
+
+
+async def test_switch_daemonless_custom_action(hass: HomeAssistant, hass_client) -> None:
+    """Test switch turn off calls custom Home Assistant service call in daemonless mode."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "webhook_id": "test_permanent_webhook",
+            "api_key": "test_api_key",
+            "ha_daemon_url": "http://127.0.0.1:8123",
+            "ha_grub_url": "http://127.0.0.1:8123",
+            "run_update_grub": True,
+            "boot_options": ["Linux"],
+            "hostname": "wyse04",
+            "daemonless": True,
+            "turn_off_action": "script.my_custom_shutdown",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    # Register a mock service for script.my_custom_shutdown
+    mock_service_calls = []
+
+    async def mock_service_handler(call) -> None:
+        mock_service_calls.append(call)
+
+    hass.services.async_register("script", "my_custom_shutdown", mock_service_handler)
+
+    with patch("custom_components.grubstation.switch.wakeonlan.wake") as mock_wake:
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Retrieve switch entity
+        entity_registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+        switch_entity_id = next(e.entity_id for e in entities if e.domain == "switch")
+
+        # Initial state should be off
+        state = hass.states.get(switch_entity_id)
+        assert state.state == "off"
+
+        # Turn on the switch
+        await hass.services.async_call("switch", "turn_on", {"entity_id": switch_entity_id}, blocking=True)
+        mock_wake.assert_called_once_with("AA:BB:CC:DD:EE:FF", host="255.255.255.255", port=9)
+
+        # State should now be on (optimistic status update)
+        state = hass.states.get(switch_entity_id)
+        assert state.state == "on"
+
+        # Turn off the switch
+        await hass.services.async_call("switch", "turn_off", {"entity_id": switch_entity_id}, blocking=True)
+        assert len(mock_service_calls) == 1
+
+        # State should now be off
+        state = hass.states.get(switch_entity_id)
+        assert state.state == "off"
+
+        # Simulate host booting (GET boot query to API)
+        client = await hass_client()
+        resp = await client.get("/api/grubstation/AA:BB:CC:DD:EE:FF")
+        assert resp.status == HTTPStatus.OK
+
+        # State should now be on because boot query was received
+        state = hass.states.get(switch_entity_id)
+        assert state.state == "on"

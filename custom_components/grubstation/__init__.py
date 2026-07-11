@@ -6,7 +6,6 @@ https://github.com/jjack/grubstation
 
 from __future__ import annotations
 
-from datetime import timedelta
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -18,7 +17,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import GrubStationApiClient
-from .const import CONF_BOOT_OPTIONS, CONF_DAEMON_TOKEN, DOMAIN, LOGGER
+from .const import CONF_BOOT_OPTIONS, CONF_DAEMON_TOKEN, CONF_DAEMONLESS, DOMAIN, LOGGER, SCAN_INTERVAL
 from .coordinator import GrubStationDataUpdateCoordinator
 from .data import GrubStationData
 from .views import GrubStationConfigView
@@ -80,11 +79,12 @@ async def async_setup_entry(
     entry: GrubStationConfigEntry,
 ) -> bool:
     """Set up this integration using UI."""
+    is_daemonless = entry.data.get(CONF_DAEMONLESS, False)
     coordinator = GrubStationDataUpdateCoordinator(
         hass=hass,
         logger=LOGGER,
         name=DOMAIN,
-        update_interval=timedelta(seconds=60),
+        update_interval=None if is_daemonless else SCAN_INTERVAL,
     )
     entry.runtime_data = GrubStationData(
         client=GrubStationApiClient(

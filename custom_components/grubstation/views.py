@@ -10,7 +10,7 @@ from aiohttp import web
 from homeassistant.const import CONF_WEBHOOK_ID
 from homeassistant.helpers.http import HomeAssistantView
 
-from .const import DEFAULT_BOOT_OPTION, DOMAIN
+from .const import CONF_DAEMONLESS, DEFAULT_BOOT_OPTION, DOMAIN
 from .helpers import normalize_mac
 
 LOGGER = logging.getLogger(__package__)
@@ -49,7 +49,10 @@ class GrubStationConfigView(HomeAssistantView):
         next_boot = DEFAULT_BOOT_OPTION
         if hasattr(matching_entry, "runtime_data"):
             next_boot = matching_entry.runtime_data.next_boot or DEFAULT_BOOT_OPTION
-            if token:
+            if matching_entry.data.get(CONF_DAEMONLESS):
+                current_data = matching_entry.runtime_data.coordinator.data or {}
+                matching_entry.runtime_data.coordinator.async_set_updated_data({**current_data, "status": "running"})
+            elif token:
                 matching_entry.runtime_data.next_boot = DEFAULT_BOOT_OPTION
                 # Trigger updates
                 matching_entry.runtime_data.coordinator.async_set_updated_data(

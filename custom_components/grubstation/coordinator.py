@@ -10,7 +10,7 @@ from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, Device
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GrubStationApiClientAuthenticationError, GrubStationApiClientError
-from .const import ATTR_VERSION, CONF_DAEMON_TOKEN, CONF_HOSTNAME, DEFAULT_AGENT_PORT, DOMAIN
+from .const import ATTR_VERSION, CONF_DAEMON_TOKEN, CONF_DAEMONLESS, CONF_HOSTNAME, DEFAULT_AGENT_PORT, DOMAIN
 from .helpers import format_display_name
 
 if TYPE_CHECKING:
@@ -25,6 +25,8 @@ class GrubStationDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> Any:
         """Update data via library."""
+        if self.config_entry.data.get(CONF_DAEMONLESS):
+            return self.data
         try:
             return await self.config_entry.runtime_data.client.async_get_status(
                 daemon_token=self.config_entry.data.get(CONF_DAEMON_TOKEN)

@@ -1,5 +1,6 @@
 """Constants for grubstation."""
 
+from datetime import timedelta
 from logging import Logger, getLogger
 from typing import Final
 
@@ -33,3 +34,5 @@ DEFAULT_WOL_PORT: Final[int] = 9
 
 API_TIMEOUT_SECONDS: Final[int] = 10
 API_KEY_LENGTH: Final[int] = 32
+
+SCAN_INTERVAL: Final[timedelta] = timedelta(seconds=60)

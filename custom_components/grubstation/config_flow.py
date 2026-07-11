@@ -93,6 +93,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._daemon_token: str | None = None
         self._wol_broadcast: str = DEFAULT_WOL_BROADCAST
         self._wol_port: int = DEFAULT_WOL_PORT
+        self._turn_off_action: str | None = None
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> config_entries.ConfigFlowResult:
         """Handle zeroconf discovery."""
@@ -135,7 +136,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             pin = user_input[CONF_PIN]
             self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
-            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
             self._ha_grub_url = advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
@@ -208,7 +208,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     ),
                     vol.Required(CONF_UPDATE_GRUB, default=True): selector.BooleanSelector(),
-                    vol.Optional(CONF_TURN_OFF_ACTION): selector.ActionSelector(),
                     vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
@@ -288,7 +287,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._ip_address = user_input[CONF_IP_ADDRESS]
 
             self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
-            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
             self._port = int(advanced.get(CONF_PORT, DEFAULT_AGENT_PORT))
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
@@ -360,7 +358,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         default_ha_daemon = current_advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
         default_ha_grub = current_advanced.get(CONF_HA_GRUB_URL, ha_grub_url)
         default_update_grub = (user_input or {}).get(CONF_UPDATE_GRUB, True)
-        default_turn_off = (user_input or {}).get(CONF_TURN_OFF_ACTION, vol.UNDEFINED)
         default_wol_broadcast = current_advanced.get(CONF_WOL_BROADCAST, DEFAULT_WOL_BROADCAST)
         default_wol_port = current_advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT)
 
@@ -394,10 +391,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_UPDATE_GRUB,
                         default=default_update_grub,
                     ): selector.BooleanSelector(),
-                    vol.Optional(
-                        CONF_TURN_OFF_ACTION,
-                        default=default_turn_off,
-                    ): selector.ActionSelector(),
                     vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
@@ -460,6 +453,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._ip_address = user_input[CONF_IP_ADDRESS]
             self._mac = user_input.get(CONF_MAC)
             self._update_grub = user_input.get(CONF_UPDATE_GRUB, True)
+            self._turn_off_action = user_input.get(CONF_TURN_OFF_ACTION)
 
             advanced = user_input.get(CONF_ADVANCED_OPTIONS, {})
             self._ha_daemon_url = advanced.get(CONF_HA_DAEMON_URL, ha_daemon_url)
@@ -468,7 +462,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self._wol_port = int(advanced.get(CONF_WOL_PORT, DEFAULT_WOL_PORT))
             self._port = DEFAULT_AGENT_PORT
             self._is_daemonless = True
-            self._turn_off_action = None
 
             if not is_ip_address(self._ip_address):
                 _errors[CONF_IP_ADDRESS] = "invalid_ip"
@@ -520,6 +513,10 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_UPDATE_GRUB,
                         default=default_update_grub,
                     ): selector.BooleanSelector(),
+                    vol.Required(
+                        CONF_TURN_OFF_ACTION,
+                        default=(user_input or {}).get(CONF_TURN_OFF_ACTION, vol.UNDEFINED),
+                    ): selector.ActionSelector(),
                     vol.Required(CONF_ADVANCED_OPTIONS): section(
                         vol.Schema(
                             {
@@ -580,7 +577,6 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self._ha_grub_url = ha_grub_url
 
         self._update_grub = getattr(self, "_update_grub", True)
-        self._turn_off_action = None
 
         payload_dict = {
             "ha_daemon_url": self._ha_daemon_url,
@@ -815,30 +811,34 @@ class GrubStationOptionsFlowHandler(config_entries.OptionsFlow):
             new_data[CONF_WOL_BROADCAST] = user_input.get(CONF_WOL_BROADCAST) or DEFAULT_WOL_BROADCAST
             new_data[CONF_WOL_PORT] = int(user_input.get(CONF_WOL_PORT) or DEFAULT_WOL_PORT)
 
-            self.hass.config_entries.async_update_entry(
-                self._config_entry,
-                data=new_data,
-            )
+            if new_data.get(CONF_DAEMONLESS) and not new_data.get(CONF_TURN_OFF_ACTION):
+                _errors["base"] = "turn_off_action_required_for_daemonless"
 
-            # Best-effort: push updated settings to the daemon.
-            # Failures are logged but do not block saving the options.
-            if not new_data.get(CONF_DAEMONLESS):
-                try:
-                    client = GrubStationApiClient(
-                        ip_address=new_data[CONF_IP_ADDRESS],
-                        port=new_data[CONF_PORT],
-                        session=async_create_clientsession(self.hass),
-                    )
-                    await client.async_update_config(
-                        new_data.get(CONF_DAEMON_TOKEN, ""),
-                        ha_daemon_url=new_data[CONF_HA_DAEMON_URL],
-                        ha_grub_url=new_data[CONF_HA_GRUB_URL],
-                        update_grub=new_data[CONF_UPDATE_GRUB],
-                    )
-                except GrubStationApiClientError as err:
-                    LOGGER.warning("Could not sync updated config to daemon: %s", err)
+            if not _errors:
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data=new_data,
+                )
 
-            return self.async_create_entry(title="", data={})
+                # Best-effort: push updated settings to the daemon.
+                # Failures are logged but do not block saving the options.
+                if not new_data.get(CONF_DAEMONLESS):
+                    try:
+                        client = GrubStationApiClient(
+                            ip_address=new_data[CONF_IP_ADDRESS],
+                            port=new_data[CONF_PORT],
+                            session=async_create_clientsession(self.hass),
+                        )
+                        await client.async_update_config(
+                            new_data.get(CONF_DAEMON_TOKEN, ""),
+                            ha_daemon_url=new_data[CONF_HA_DAEMON_URL],
+                            ha_grub_url=new_data[CONF_HA_GRUB_URL],
+                            update_grub=new_data[CONF_UPDATE_GRUB],
+                        )
+                    except GrubStationApiClientError as err:
+                        LOGGER.warning("Could not sync updated config to daemon: %s", err)
+
+                return self.async_create_entry(title="", data={})
 
         current = self._config_entry.data
 
