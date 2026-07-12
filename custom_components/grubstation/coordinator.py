@@ -10,7 +10,7 @@ from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, Device
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import GrubStationApiClientAuthenticationError, GrubStationApiClientError
-from .const import ATTR_VERSION, CONF_DAEMON_TOKEN, CONF_DAEMONLESS, CONF_HOSTNAME, DEFAULT_AGENT_PORT, DOMAIN
+from .const import ATTR_VERSION, CONF_DAEMON_TOKEN, CONF_DAEMONLESS, CONF_HOSTNAME, DEFAULT_DAEMON_PORT, DOMAIN
 from .helpers import format_display_name
 
 if TYPE_CHECKING:
@@ -41,7 +41,7 @@ class GrubStationDataUpdateCoordinator(DataUpdateCoordinator):
         """Return device information."""
         host = self.config_entry.data.get(CONF_IP_ADDRESS)
         hostname = self.config_entry.data.get(CONF_HOSTNAME)
-        port = self.config_entry.data.get(CONF_PORT) or DEFAULT_AGENT_PORT
+        port = self.config_entry.data.get(CONF_PORT) or DEFAULT_DAEMON_PORT
         sw_version = self.data.get(ATTR_VERSION) if self.data else None
         mac = self.config_entry.data.get(CONF_MAC)
 

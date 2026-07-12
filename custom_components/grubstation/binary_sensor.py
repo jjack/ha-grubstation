@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
         key="grubstation",
-        translation_key="agent_status",
+        translation_key="daemon_status",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
     ),
 )

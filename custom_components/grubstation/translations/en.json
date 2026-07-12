@@ -9,9 +9,9 @@
                     "setup_type": "Configuration Type"
                 }
             },
-            "agent_config": {
-                "title": "Configure Agent Host",
-                "description": "Set up a new connection to a remote machine running the GrubStation agent. If you need help, please refer to the documentation: {documentation_url}",
+            "daemon_config": {
+                "title": "Configure Daemon Host",
+                "description": "Set up a new connection to a remote machine running the GrubStation daemon. If you need help, please refer to the documentation: {documentation_url}",
                 "data": {
                     "ip_address": "IP Address",
                     "pin": "PIN Code",
@@ -28,15 +28,15 @@
                         "description": "Optional advanced settings for port and webhook URLs.",
                         "data": {
                             "port": "Port",
-                            "daemon_url": "Home Assistant Daemon URL (HTTPS allowed)",
-                            "grub_url": "GRUB Boot URL (Must be HTTP)",
+                            "ha_url": "Home Assistant URL (HTTPS allowed)",
+                            "grub_boot_url": "GRUB Boot URL (Must be HTTP)",
                             "wol_broadcast": "Wake-on-LAN Broadcast Address",
                             "wol_port": "Wake-on-LAN Broadcast Port"
                         },
                         "data_description": {
-                            "port": "The port that the GrubStation Agent is listening on (default: 8081).",
-                            "daemon_url": "The URL GrubStation uses to communicate with Home Assistant's webhooks. This can be an HTTPS address.",
-                            "grub_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
+                            "port": "The port that the GrubStation Daemon is listening on (default: 8081).",
+                            "ha_url": "The URL GrubStation uses to communicate with Home Assistant's webhooks. This can be an HTTPS address.",
+                            "grub_boot_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
                             "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`.",
                             "wol_port": "The port used when sending the Wake-on-LAN magic packet. Defaults to 9."
                         }
@@ -63,14 +63,14 @@
                         "name": "Advanced Options",
                         "description": "Optional advanced settings for webhook and GRUB boot URLs.",
                         "data": {
-                            "daemon_url": "Home Assistant Daemon URL (HTTPS allowed)",
-                            "grub_url": "GRUB Boot URL (Must be HTTP)",
+                            "ha_url": "Home Assistant URL (HTTPS allowed)",
+                            "grub_boot_url": "GRUB Boot URL (Must be HTTP)",
                             "wol_broadcast": "Wake-on-LAN Broadcast Address",
                             "wol_port": "Wake-on-LAN Broadcast Port"
                         },
                         "data_description": {
-                            "daemon_url": "The URL GrubStation uses to communicate with Home Assistant's webhooks. This can be an HTTPS address.",
-                            "grub_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
+                            "ha_url": "The URL GrubStation uses to communicate with Home Assistant's webhooks. This can be an HTTPS address.",
+                            "grub_boot_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
                             "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`.",
                             "wol_port": "The port used when sending the Wake-on-LAN magic packet. Defaults to 9."
                         }
@@ -141,18 +141,18 @@
                 "title": "GrubStation Settings",
                 "description": "Configure your GrubStation integration settings.",
                 "data": {
-                    "daemon_url": "Home Assistant Daemon URL (HTTPS allowed)",
-                    "grub_url": "GRUB Boot URL (Must be HTTP)",
+                    "ha_url": "Home Assistant URL (HTTPS allowed)",
+                    "grub_boot_url": "GRUB Boot URL (Must be HTTP)",
                     "update_grub": "Apply GRUB configuration changes and run `update-grub` automatically",
                     "turn_off_action": "Optional Turn Off Action (Grubstation Daemon is the default)",
                     "wol_broadcast": "Wake-on-LAN Broadcast Address",
                     "wol_port": "Wake-on-LAN Broadcast Port"
                 },
                 "data_description": {
-                    "daemon_url": "The URL GrubStation uses to communicate with Home Assistant. This **can** be an HTTPS address.",
-                    "grub_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
+                    "ha_url": "The URL GrubStation uses to communicate with Home Assistant. This **can** be an HTTPS address.",
+                    "grub_boot_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
                     "update_grub": "If you choose not to run `update-grub` now, you can manually run it later.",
-                    "turn_off_action": "Optional custom action (like a script or service call) to run when turning off this host instead of the default daemon agent shutdown command. Note: A custom action is required for daemonless hosts.",
+                    "turn_off_action": "Optional custom action (like a script or service call) to run when turning off this host instead of the default daemon shutdown command. Note: A custom action is required for daemonless hosts.",
                     "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`. Change this if your machine is on a different subnet (e.g. `192.168.1.255`).",
                     "wol_port": "The port used when sending the Wake-on-LAN magic packet. Defaults to 9."
                 }
@@ -165,15 +165,15 @@
     "selector": {
         "setup_type_options": {
             "options": {
-                "agent": "Standard Host (with background Agent Daemon)",
+                "daemon": "Standard Host (with background Daemon)",
                 "daemonless": "Daemonless Host (reports/retrieves boot options only)"
             }
         }
     },
     "entity": {
         "binary_sensor": {
-            "agent_status": {
-                "name": "Agent Status"
+            "daemon_status": {
+                "name": "Daemon Status"
             }
         },
         "button": {

@@ -23,15 +23,15 @@ async def test_config_flow(hass: HomeAssistant) -> None:
     assert result["type"] == "form"
     assert result["step_id"] == "user"
 
-    # Select agent type
+    # Select daemon type
     result_type = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "setup_type": "agent",
+            "setup_type": "daemon",
         },
     )
     assert result_type["type"] == "form"
-    assert result_type["step_id"] == "agent_config"
+    assert result_type["step_id"] == "daemon_config"
 
     # Submit pairing step, which generates credentials and calls pairing API
     with patch(
@@ -72,15 +72,15 @@ async def test_config_flow_invalid_ip(hass: HomeAssistant) -> None:
     assert result["type"] == "form"
     assert result["step_id"] == "user"
 
-    # Select agent type
+    # Select daemon type
     result_type = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "setup_type": "agent",
+            "setup_type": "daemon",
         },
     )
     assert result_type["type"] == "form"
-    assert result_type["step_id"] == "agent_config"
+    assert result_type["step_id"] == "daemon_config"
 
     # Submit user step with a non-IP host address
     result2 = await hass.config_entries.flow.async_configure(
@@ -94,7 +94,7 @@ async def test_config_flow_invalid_ip(hass: HomeAssistant) -> None:
         },
     )
     assert result2["type"] == "form"
-    assert result2["step_id"] == "agent_config"
+    assert result2["step_id"] == "daemon_config"
     assert result2["errors"] == {"ip_address": "invalid_ip"}
 
 
@@ -106,15 +106,15 @@ async def test_config_flow_pin_required_and_invalid_and_success(
     assert result["type"] == "form"
     assert result["step_id"] == "user"
 
-    # Select agent type
+    # Select daemon type
     result_type = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "setup_type": "agent",
+            "setup_type": "daemon",
         },
     )
     assert result_type["type"] == "form"
-    assert result_type["step_id"] == "agent_config"
+    assert result_type["step_id"] == "daemon_config"
 
     # 1. Submit invalid PIN. Mock it to raise GrubStationApiInvalidPinError
     with patch(
@@ -132,7 +132,7 @@ async def test_config_flow_pin_required_and_invalid_and_success(
             },
         )
     assert result2["type"] == "form"
-    assert result2["step_id"] == "agent_config"
+    assert result2["step_id"] == "daemon_config"
     assert result2["errors"] == {"base": "invalid_pin"}
 
     # 2. Submit valid PIN. Mock it to return success response
@@ -165,17 +165,17 @@ async def test_config_flow_pin_required_and_invalid_and_success(
 
 
 async def test_config_flow_pin_connection_error(hass: HomeAssistant) -> None:
-    """Test config flow when agent config encounters a connection error."""
+    """Test config flow when daemon config encounters a connection error."""
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    # Select agent type
+    # Select daemon type
     result_type = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "setup_type": "agent",
+            "setup_type": "daemon",
         },
     )
     assert result_type["type"] == "form"
-    assert result_type["step_id"] == "agent_config"
+    assert result_type["step_id"] == "daemon_config"
 
     # Submit PIN resulting in connection error
     with patch(
@@ -193,7 +193,7 @@ async def test_config_flow_pin_connection_error(hass: HomeAssistant) -> None:
             },
         )
     assert result2["type"] == "form"
-    assert result2["step_id"] == "agent_config"
+    assert result2["step_id"] == "daemon_config"
     assert result2["errors"] == {"base": "connection"}
 
 
@@ -416,8 +416,8 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
                 "pin": "123456",
                 "update_grub": True,
                 CONF_ADVANCED_OPTIONS: {
-                    "daemon_url": "https://my-ha.duckdns.org:8123",
-                    "grub_url": "http://10.15.0.5:8123",
+                    "ha_url": "https://my-ha.duckdns.org:8123",
+                    "grub_boot_url": "http://10.15.0.5:8123",
                     "wol_broadcast": "192.168.1.255",
                     "wol_port": 7,
                 },
@@ -427,8 +427,8 @@ async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
         assert result2["title"] == "grubstation.local"
         assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
         assert result2["data"]["ip_address"] == "127.0.0.1"
-        assert result2["data"]["daemon_url"] == "https://my-ha.duckdns.org:8123"
-        assert result2["data"]["grub_url"] == "http://10.15.0.5:8123"
+        assert result2["data"]["ha_url"] == "https://my-ha.duckdns.org:8123"
+        assert result2["data"]["grub_boot_url"] == "http://10.15.0.5:8123"
         assert result2["data"]["update_grub"] is True
         assert result2["data"]["daemon_token"] == "test_daemon_token"
         assert result2["data"]["wol_broadcast"] == "192.168.1.255"
@@ -529,8 +529,8 @@ async def test_options_flow_update_settings(hass: HomeAssistant) -> None:
             "mac": "aa:bb:cc:dd:ee:ff",
             "webhook_id": "test_webhook_id",
             "api_key": "test_api_key",
-            "daemon_url": "https://ha.local:8123",
-            "grub_url": "http://10.0.0.1:8123",
+            "ha_url": "https://ha.local:8123",
+            "grub_boot_url": "http://10.0.0.1:8123",
             "update_grub": True,
         },
         unique_id="aa:bb:cc:dd:ee:ff",
@@ -547,14 +547,14 @@ async def test_options_flow_update_settings(hass: HomeAssistant) -> None:
         result2 = await hass.config_entries.options.async_configure(
             result["flow_id"],
             {
-                "daemon_url": "https://new-ha.local:8123",
-                "grub_url": "http://10.0.0.2:8123",
+                "ha_url": "https://new-ha.local:8123",
+                "grub_boot_url": "http://10.0.0.2:8123",
                 "update_grub": False,
             },
         )
     assert result2["type"] == "create_entry"
-    assert entry.data["daemon_url"] == "https://new-ha.local:8123"
-    assert entry.data["grub_url"] == "http://10.0.0.2:8123"
+    assert entry.data["ha_url"] == "https://new-ha.local:8123"
+    assert entry.data["grub_boot_url"] == "http://10.0.0.2:8123"
     assert entry.data["update_grub"] is False
     mock_update.assert_awaited_once()
 
@@ -570,8 +570,8 @@ async def test_options_flow_daemon_sync_failure(hass: HomeAssistant) -> None:
             "mac": "aa:bb:cc:dd:ee:ff",
             "webhook_id": "test_webhook_id",
             "api_key": "test_api_key",
-            "daemon_url": "https://ha.local:8123",
-            "grub_url": "http://10.0.0.1:8123",
+            "ha_url": "https://ha.local:8123",
+            "grub_boot_url": "http://10.0.0.1:8123",
             "update_grub": True,
             "daemon_token": "test_token",
         },
@@ -588,15 +588,15 @@ async def test_options_flow_daemon_sync_failure(hass: HomeAssistant) -> None:
         result2 = await hass.config_entries.options.async_configure(
             result["flow_id"],
             {
-                "daemon_url": "https://new-ha.local:8123",
-                "grub_url": "http://10.0.0.2:8123",
+                "ha_url": "https://new-ha.local:8123",
+                "grub_boot_url": "http://10.0.0.2:8123",
                 "update_grub": False,
             },
         )
 
     # Save should still succeed even though the daemon was unreachable
     assert result2["type"] == "create_entry"
-    assert entry.data["daemon_url"] == "https://new-ha.local:8123"
+    assert entry.data["ha_url"] == "https://new-ha.local:8123"
 
 
 async def test_reauth_flow_success(hass: HomeAssistant) -> None:
@@ -612,8 +612,8 @@ async def test_reauth_flow_success(hass: HomeAssistant) -> None:
             "mac": "aa:bb:cc:dd:ee:ff",
             "webhook_id": "original_webhook_id",
             "api_key": "original_api_key",
-            "daemon_url": "http://127.0.0.1:8123",
-            "grub_url": "http://127.0.0.1:8123",
+            "ha_url": "http://127.0.0.1:8123",
+            "grub_boot_url": "http://127.0.0.1:8123",
             "run_update_grub": True,
             "hostname": "grubstation.local",
             "daemon_token": "old_daemon_token",
@@ -657,8 +657,8 @@ async def test_reauth_flow_invalid_pin(hass: HomeAssistant) -> None:
             "mac": "aa:bb:cc:dd:ee:ff",
             "webhook_id": "original_webhook_id",
             "api_key": "original_api_key",
-            "daemon_url": "http://127.0.0.1:8123",
-            "grub_url": "http://127.0.0.1:8123",
+            "ha_url": "http://127.0.0.1:8123",
+            "grub_boot_url": "http://127.0.0.1:8123",
             "run_update_grub": True,
             "hostname": "grubstation.local",
             "daemon_token": "old_daemon_token",
