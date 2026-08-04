@@ -51,7 +51,17 @@ class GrubStationConfigView(HomeAssistantView):
             next_boot = matching_entry.runtime_data.next_boot or DEFAULT_BOOT_OPTION
             if matching_entry.data.get(CONF_DAEMONLESS):
                 current_data = matching_entry.runtime_data.coordinator.data or {}
-                matching_entry.runtime_data.coordinator.async_set_updated_data({**current_data, "status": "running"})
+                if "daemons" in current_data:
+                    daemons = dict(current_data.get("daemons", {}))
+                    for os_key, d_status in daemons.items():
+                        daemons[os_key] = {**d_status, "status": "running", "connected": True}
+                    matching_entry.runtime_data.coordinator.async_set_updated_data(
+                        {**current_data, "daemons": daemons, "status": "running"}
+                    )
+                else:
+                    matching_entry.runtime_data.coordinator.async_set_updated_data(
+                        {**current_data, "status": "running"}
+                    )
             elif token:
                 matching_entry.runtime_data.next_boot = DEFAULT_BOOT_OPTION
                 # Trigger updates

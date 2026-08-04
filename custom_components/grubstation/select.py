@@ -56,7 +56,15 @@ class GrubStationSelect(GrubStationEntity, RestoreEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return a list of available options."""
-        boot_options = self.coordinator.config_entry.data.get(CONF_BOOT_OPTIONS) or []
+        daemons = self.coordinator.config_entry.data.get("daemons") or {}
+        if daemons:
+            all_opts = set()
+            for d_info in daemons.values():
+                opts = d_info.get(CONF_BOOT_OPTIONS) or []
+                all_opts.update(opts)
+            boot_options = sorted(all_opts)
+        else:
+            boot_options = self.coordinator.config_entry.data.get(CONF_BOOT_OPTIONS) or []
         return [DEFAULT_BOOT_OPTION] + [opt for opt in boot_options if opt != DEFAULT_BOOT_OPTION]
 
     @property

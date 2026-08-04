@@ -98,6 +98,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._ha_url: str | None = None
         self._grub_boot_url: str | None = None
         self._update_grub: bool = True
+        self._os_name: str | None = None
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> config_entries.ConfigFlowResult:
         """Handle zeroconf discovery."""
@@ -188,10 +189,22 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self._daemon_token = response_data.get("token")
                 self._boot_options = response_data.get("boot_options")
 
+                # Fetch OS name
+                try:
+                    client = GrubStationApiClient(
+                        ip_address=self._ip_address,
+                        port=self._port,
+                        session=async_create_clientsession(self.hass),
+                    )
+                    status = await client.async_get_status(daemon_token=self._daemon_token)
+                    self._os_name = status.get("os", "Linux")
+                except Exception:  # noqa: BLE001
+                    self._os_name = "Linux"
+
                 if self._mac:
                     normalized_mac = normalize_mac(self._mac)
-                    await self.async_set_unique_id(normalized_mac)
-                    self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
+                    if result := await self._async_handle_existing_entry(normalized_mac):
+                        return result
                     self._mac = normalized_mac
                 else:
                     await self.async_set_unique_id(self._ip_address)
@@ -347,10 +360,22 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     self._daemon_token = response_data.get("token")
                     self._boot_options = response_data.get("boot_options")
 
+                    # Fetch OS name
+                    try:
+                        client = GrubStationApiClient(
+                            ip_address=self._ip_address,
+                            port=self._port,
+                            session=async_create_clientsession(self.hass),
+                        )
+                        status = await client.async_get_status(daemon_token=self._daemon_token)
+                        self._os_name = status.get("os", "Linux")
+                    except Exception:  # noqa: BLE001
+                        self._os_name = "Linux"
+
                     if self._mac:
                         normalized_mac = normalize_mac(self._mac)
-                        await self.async_set_unique_id(normalized_mac)
-                        self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
+                        if result := await self._async_handle_existing_entry(normalized_mac):
+                            return result
                         self._mac = normalized_mac
                     else:
                         await self.async_set_unique_id(self._ip_address)
@@ -474,11 +499,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             elif not self._mac:
                 _errors[CONF_MAC] = "mac_required_for_daemonless"
             else:
-                normalized_mac = normalize_mac(self._mac)
-                await self.async_set_unique_id(normalized_mac)
-                self._abort_if_unique_id_configured(updates={CONF_IP_ADDRESS: self._ip_address})
-                self._mac = normalized_mac
-
+                self._mac = normalize_mac(self._mac)
                 return await self.async_step_daemonless_onboarding()
 
         # Defaults for the advanced options
@@ -608,6 +629,10 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if self._daemonless_paired:
                 webhook.async_unregister(self.hass, self._webhook_id)
                 self._temporary_webhook_registered = False
+                if self._mac:
+                    normalized_mac = normalize_mac(self._mac)
+                    if result := await self._async_handle_existing_entry(normalized_mac):
+                        return result
                 return self._async_create_grubstation_entry()
             _errors["base"] = "waiting_for_device_callback"
 
@@ -632,6 +657,7 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             LOGGER.debug("Received daemonless webhook callback payload: %s", payload)
             if payload.get("action") == "update_boot_options" or "boot_options" in payload:
                 self._boot_options = payload.get("boot_options")
+                self._os_name = payload.get("os", "Linux")
                 self._daemonless_paired = True
                 LOGGER.info("GrubStation daemonless host successfully paired via webhook!")
             else:
@@ -640,9 +666,56 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             LOGGER.exception("Error handling daemonless webhook callback: %s", exception)
         return web.json_response({"status": "ok"})
 
+    async def _async_handle_existing_entry(self, normalized_mac: str) -> config_entries.ConfigFlowResult | None:
+        """Handle updating an existing entry with a new OS daemon."""
+        await self.async_set_unique_id(normalized_mac)
+        existing_entry = self.hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, normalized_mac)
+        if not existing_entry:
+            return None
+
+        os_name = getattr(self, "_os_name", None) or "Linux"
+        new_data = dict(existing_entry.data)
+        daemons = dict(new_data.get("daemons", {}))
+
+        # Migrate old format if necessary
+        if not daemons:
+            old_os = existing_entry.data.get("os") or "Linux"
+            daemons[old_os.lower()] = {
+                CONF_IP_ADDRESS: existing_entry.data.get(CONF_IP_ADDRESS),
+                CONF_PORT: existing_entry.data.get(CONF_PORT),
+                CONF_DAEMON_TOKEN: existing_entry.data.get(CONF_DAEMON_TOKEN),
+                CONF_BOOT_OPTIONS: existing_entry.data.get(CONF_BOOT_OPTIONS),
+                CONF_HOSTNAME: existing_entry.data.get(CONF_HOSTNAME),
+                CONF_DAEMONLESS: existing_entry.data.get(CONF_DAEMONLESS, False),
+            }
+
+        # Add or update daemon
+        daemons[os_name.lower()] = {
+            CONF_IP_ADDRESS: self._ip_address,
+            CONF_PORT: self._port,
+            CONF_DAEMON_TOKEN: self._daemon_token,
+            CONF_BOOT_OPTIONS: self._boot_options,
+            CONF_HOSTNAME: self._hostname,
+            CONF_DAEMONLESS: self._is_daemonless,
+        }
+        new_data["daemons"] = daemons
+
+        # Keep root keys matching latest paired OS
+        new_data[CONF_IP_ADDRESS] = self._ip_address
+        new_data[CONF_PORT] = self._port
+        new_data[CONF_DAEMON_TOKEN] = self._daemon_token
+        new_data[CONF_BOOT_OPTIONS] = self._boot_options
+        new_data[CONF_HOSTNAME] = self._hostname
+        new_data[CONF_DAEMONLESS] = self._is_daemonless
+
+        self.hass.config_entries.async_update_entry(existing_entry, data=new_data)
+        await self.hass.config_entries.async_reload(existing_entry.entry_id)
+        return self.async_abort(reason="already_configured")
+
     @callback
     def _async_create_grubstation_entry(self) -> config_entries.ConfigFlowResult:
         """Create the config entry."""
+        os_name = getattr(self, "_os_name", None) or "Linux"
         data = {
             CONF_IP_ADDRESS: self._ip_address,
             CONF_PORT: self._port,
@@ -657,6 +730,16 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_DAEMON_TOKEN: self._daemon_token,
             CONF_WOL_BROADCAST: self._wol_broadcast,
             CONF_WOL_PORT: self._wol_port,
+            "daemons": {
+                os_name.lower(): {
+                    CONF_IP_ADDRESS: self._ip_address,
+                    CONF_PORT: self._port,
+                    CONF_DAEMON_TOKEN: self._daemon_token,
+                    CONF_BOOT_OPTIONS: self._boot_options,
+                    CONF_HOSTNAME: self._hostname,
+                    CONF_DAEMONLESS: self._is_daemonless,
+                }
+            },
         }
         if self._is_daemonless:
             title = f"GrubStation ({self._ip_address}) [Manual]"

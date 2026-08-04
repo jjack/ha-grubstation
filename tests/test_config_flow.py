@@ -688,3 +688,93 @@ async def test_reauth_flow_invalid_pin(hass: HomeAssistant) -> None:
     assert result2["errors"] == {"base": "invalid_pin"}
     # Token should be unchanged
     assert entry.data["daemon_token"] == "old_daemon_token"
+
+
+async def test_config_flow_multi_os_merge(hass: HomeAssistant) -> None:
+    """Test that configuring a second OS daemon on the same MAC address merges them."""
+    assert await async_setup_component(hass, "http", {})
+    assert await async_setup_component(hass, "webhook", {})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip_address": "127.0.0.1",
+            "port": 8081,
+            "mac": "aa:bb:cc:dd:ee:ff",
+            "webhook_id": "original_webhook_id",
+            "api_key": "original_api_key",
+            "ha_url": "http://127.0.0.1:8123",
+            "grub_boot_url": "http://127.0.0.1:8123",
+            "update_grub": True,
+            "hostname": "grubstation-linux",
+            "daemon_token": "linux_token",
+            "daemons": {
+                "linux": {
+                    "ip_address": "127.0.0.1",
+                    "port": 8081,
+                    "daemon_token": "linux_token",
+                    "boot_options": ["linux", "windows"],
+                    "hostname": "grubstation-linux",
+                    "is_daemonless": False,
+                }
+            },
+        },
+        unique_id="aa:bb:cc:dd:ee:ff",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+    result_type = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "setup_type": "daemon",
+        },
+    )
+    assert result_type["type"] == "form"
+    assert result_type["step_id"] == "daemon_config"
+
+    with (
+        patch(
+            "custom_components.grubstation.api.GrubStationApiClient.async_pair",
+            return_value={
+                "paired": True,
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "token": "windows_token",
+                "boot_options": ["linux", "windows"],
+            },
+        ),
+        patch(
+            "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
+            return_value={
+                "os": "Windows",
+                "service_manager": "sc",
+                "status": "running",
+                "version": "1.0.0",
+            },
+        ),
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result_type["flow_id"],
+            {
+                "ip_address": "127.0.0.2",
+                "pin": "123456",
+                "update_grub": True,
+                CONF_ADVANCED_OPTIONS: {
+                    "port": 8081,
+                },
+            },
+        )
+
+    assert result2["type"] == "abort"
+    assert result2["reason"] == "already_configured"
+
+    # Check that both linux and windows are now registered in the daemons dictionary
+    daemons = entry.data.get("daemons")
+    assert daemons is not None
+    assert "linux" in daemons
+    assert "windows" in daemons
+    assert daemons["windows"]["ip_address"] == "127.0.0.2"
+    assert daemons["windows"]["daemon_token"] == "windows_token"

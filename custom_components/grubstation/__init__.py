@@ -56,18 +56,47 @@ async def async_handle_webhook(
     if not entry:
         return web.json_response({"status": "error", "message": "Entry not found"}, status=HTTPStatus.NOT_FOUND)
 
+    os_name = payload.get("os")
+
     # Process payload
     # 1. Update boot options if provided
     if "boot_options" in payload:
         boot_options = payload["boot_options"]
         new_data = dict(entry.data)
+        if os_name and "daemons" in new_data:
+            daemons = dict(new_data["daemons"])
+            os_key = os_name.lower()
+            if os_key in daemons:
+                d_info = dict(daemons[os_key])
+                d_info["boot_options"] = boot_options
+                daemons[os_key] = d_info
+                new_data["daemons"] = daemons
         new_data[CONF_BOOT_OPTIONS] = boot_options
         hass.config_entries.async_update_entry(entry, data=new_data)
 
     # 2. Update status/coordinator data if provided
     if hasattr(entry, "runtime_data") and ("status" in payload or "os" in payload):
         current_data = entry.runtime_data.coordinator.data or {}
-        merged_data = {**current_data, **payload}
+        if os_name and "daemons" in current_data:
+            daemons = dict(current_data.get("daemons", {}))
+            os_key = os_name.lower()
+            d_status = dict(daemons.get(os_key, {}))
+            d_status.update(payload)
+            d_status["connected"] = payload.get("status") == "running"
+            daemons[os_key] = d_status
+
+            merged_data = {**current_data, "daemons": daemons}
+            if payload.get("status") == "running" or current_data.get("os") == os_name:
+                merged_data.update(
+                    {
+                        "status": payload.get("status", "stopped"),
+                        "os": os_name,
+                        "service_manager": payload.get("service_manager", d_status.get("service_manager")),
+                        "version": payload.get("version", d_status.get("version")),
+                    }
+                )
+        else:
+            merged_data = {**current_data, **payload}
         entry.runtime_data.coordinator.async_set_updated_data(merged_data)
 
     return web.json_response({"status": "ok"})
