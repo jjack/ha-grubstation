@@ -54,6 +54,27 @@ async def test_zeroconf_flow(hass: HomeAssistant) -> None:
     assert flows[0]["context"]["title_placeholders"] == {"name": "grubstation-daemon.local (192.168.1.100)"}
 
 
+async def test_zeroconf_flow_already_paired(hass: HomeAssistant) -> None:
+    """Test zeroconf discovery step aborts if instance is already paired."""
+    discovery_info = ZeroconfServiceInfo(
+        ip_address=ipaddress.ip_address("192.168.1.100"),
+        ip_addresses=[ipaddress.ip_address("192.168.1.100")],
+        hostname="grubstation-daemon.local",
+        port=8081,
+        name="grubstation",
+        properties={"paired": "true"},
+        type="_grubstation._tcp.local.",
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=discovery_info,
+    )
+    assert result["type"] == "abort"
+    assert result["reason"] == "already_configured"
+
+
 async def test_pin_auth_success(hass: HomeAssistant) -> None:
     """Test successful PIN authentication and config entry creation."""
     assert await async_setup_component(hass, "http", {})

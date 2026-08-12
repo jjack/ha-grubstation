@@ -53,6 +53,11 @@ class GrubStationFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._host = discovery_info.host
         self._port = discovery_info.port or 8081
 
+        # Ignore already paired instances
+        paired = discovery_info.properties.get("paired")
+        if paired and str(paired).lower() in ("true", "1", "yes"):
+            return self.async_abort(reason="already_configured")
+
         # Check if the host is already configured
         for entry in self._async_current_entries():
             if entry.data.get("host") == self._host:
