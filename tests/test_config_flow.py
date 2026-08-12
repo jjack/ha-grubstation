@@ -1,780 +1,183 @@
 """Tests for GrubStation config flow."""
 
 from http import HTTPStatus
-from unittest.mock import patch
+import ipaddress
+from unittest.mock import AsyncMock, patch
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+import aiohttp
 
-from custom_components.grubstation.api import (
-    GrubStationApiClientCommunicationError,
-    GrubStationApiConflictError,
-    GrubStationApiInvalidPinError,
-)
-from custom_components.grubstation.const import CONF_ADVANCED_OPTIONS, DOMAIN
+from custom_components.grubstation.const import DOMAIN
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.setup import async_setup_component
 
 
-async def test_config_flow(hass: HomeAssistant) -> None:
-    """Test the config flow user and pairing steps."""
+async def test_manual_user_flow(hass: HomeAssistant) -> None:
+    """Test manual user flow config step and navigation to pin step."""
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     assert result["type"] == "form"
     assert result["step_id"] == "user"
 
-    # Select daemon type
-    result_type = await hass.config_entries.flow.async_configure(
+    result_pin = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "setup_type": "daemon",
+            "host": "192.168.1.100",
+            "port": 8081,
         },
     )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemon_config"
+    assert result_pin["type"] == "form"
+    assert result_pin["step_id"] == "pin"
 
-    # Submit pairing step, which generates credentials and calls pairing API
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        return_value={
-            "paired": True,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "token": "test_daemon_token",
+
+async def test_zeroconf_flow(hass: HomeAssistant) -> None:
+    """Test zeroconf discovery step and navigation to pin step."""
+    discovery_info = ZeroconfServiceInfo(
+        ip_address=ipaddress.ip_address("192.168.1.100"),
+        ip_addresses=[ipaddress.ip_address("192.168.1.100")],
+        hostname="grubstation-daemon.local",
+        port=8081,
+        name="grubstation",
+        properties={},
+        type="_grubstation._tcp.local.",
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=discovery_info,
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "pin"
+    flows = hass.config_entries.flow.async_progress()
+    assert len(flows) == 1
+    assert flows[0]["context"]["title_placeholders"] == {"name": "grubstation-daemon.local (192.168.1.100)"}
+
+
+async def test_pin_auth_success(hass: HomeAssistant) -> None:
+    """Test successful PIN authentication and config entry creation."""
+    assert await async_setup_component(hass, "http", {})
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result_pin = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "host": "192.168.1.100",
+            "port": 8081,
         },
-    ) as mock_pair:
-        result2 = await hass.config_entries.flow.async_configure(
-            result_type["flow_id"],
+    )
+
+    mock_verify_response = AsyncMock()
+    mock_verify_response.status = HTTPStatus.OK
+    mock_verify_response.json = AsyncMock(
+        return_value={
+            "success": True,
+            "token": "test_daemon_token",
+            "hostname": "grubstation-host",
+            "os": "ubuntu",
+            "boot_options": ["Ubuntu", "Windows"],
+        }
+    )
+
+    mock_interfaces_response = AsyncMock()
+    mock_interfaces_response.status = HTTPStatus.OK
+    mock_interfaces_response.json = AsyncMock(
+        return_value=[
             {
-                "ip_address": "127.0.0.1",
+                "name": "eth0",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "ip_address": "192.168.1.100",
+                "ip_addresses": ["192.168.1.100"],
+            }
+        ]
+    )
+
+    mock_pair_response = AsyncMock()
+    mock_pair_response.status = HTTPStatus.OK
+
+    with patch("custom_components.grubstation.config_flow.async_get_clientsession") as mock_get_session:
+        session = AsyncMock()
+        mock_get_session.return_value = session
+        session.post = AsyncMock(side_effect=[mock_verify_response, mock_pair_response])
+        session.get = AsyncMock(return_value=mock_interfaces_response)
+
+        result_interface = await hass.config_entries.flow.async_configure(
+            result_pin["flow_id"],
+            {
                 "pin": "123456",
-                "update_grub": False,
-                CONF_ADVANCED_OPTIONS: {
-                    "port": 8081,
-                    "wol_broadcast": "192.168.1.255",
-                    "wol_port": 7,
-                },
             },
         )
-        assert result2["type"] == "create_entry"
-        assert result2["title"] == "GrubStation (127.0.0.1)"
-        assert result2["data"]["update_grub"] is False
-        assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
-        assert result2["data"]["daemon_token"] == "test_daemon_token"
-        assert result2["data"]["wol_broadcast"] == "192.168.1.255"
-        assert result2["data"]["wol_port"] == 7
-        assert mock_pair.call_args.kwargs["pin"] == "123456"
-        assert mock_pair.call_args.kwargs["update_grub"] is False
+        assert result_interface["type"] == "form"
+        assert result_interface["step_id"] == "interface"
 
-
-async def test_config_flow_invalid_ip(hass: HomeAssistant) -> None:
-    """Test that config flow rejects a host that is not an IP address."""
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    assert result["type"] == "form"
-    assert result["step_id"] == "user"
-
-    # Select daemon type
-    result_type = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            "setup_type": "daemon",
-        },
-    )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemon_config"
-
-    # Submit user step with a non-IP host address
-    result2 = await hass.config_entries.flow.async_configure(
-        result_type["flow_id"],
-        {
-            "ip_address": "grubstation.local",
-            "pin": "123456",
-            CONF_ADVANCED_OPTIONS: {
-                "port": 8081,
-            },
-        },
-    )
-    assert result2["type"] == "form"
-    assert result2["step_id"] == "daemon_config"
-    assert result2["errors"] == {"ip_address": "invalid_ip"}
-
-
-async def test_config_flow_pin_required_and_invalid_and_success(
-    hass: HomeAssistant,
-) -> None:
-    """Test config flow when PIN is invalid, then correct."""
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    assert result["type"] == "form"
-    assert result["step_id"] == "user"
-
-    # Select daemon type
-    result_type = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            "setup_type": "daemon",
-        },
-    )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemon_config"
-
-    # 1. Submit invalid PIN. Mock it to raise GrubStationApiInvalidPinError
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        side_effect=GrubStationApiInvalidPinError("Invalid PIN entered"),
-    ):
-        result2 = await hass.config_entries.flow.async_configure(
-            result_type["flow_id"],
+        result_create = await hass.config_entries.flow.async_configure(
+            result_interface["flow_id"],
             {
-                "ip_address": "127.0.0.1",
+                "interface": "eth0",
+            },
+        )
+
+        assert result_create["type"] == "create_entry"
+        assert result_create["title"] == "grubstation-host"
+        assert result_create["data"]["ip_address"] == "192.168.1.100"
+        assert result_create["data"]["port"] == 8081
+        assert result_create["data"]["hostname"] == "grubstation-host"
+        assert result_create["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
+        assert result_create["data"]["ipv4"] == "192.168.1.100"
+        assert "webhook_id" in result_create["data"]
+        assert result_create["data"]["daemon_token"] == "test_daemon_token"
+
+
+async def test_pin_auth_invalid(hass: HomeAssistant) -> None:
+    """Test PIN authentication with invalid PIN."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result_pin = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "host": "192.168.1.100",
+            "port": 8081,
+        },
+    )
+
+    mock_pair_response = AsyncMock()
+    mock_pair_response.status = HTTPStatus.UNAUTHORIZED
+
+    with patch("custom_components.grubstation.config_flow.async_get_clientsession") as mock_get_session:
+        session = AsyncMock()
+        session.post = AsyncMock(return_value=mock_pair_response)
+        mock_get_session.return_value = session
+
+        result_invalid = await hass.config_entries.flow.async_configure(
+            result_pin["flow_id"],
+            {
                 "pin": "wrong_pin",
-                CONF_ADVANCED_OPTIONS: {
-                    "port": 8081,
-                },
             },
         )
-    assert result2["type"] == "form"
-    assert result2["step_id"] == "daemon_config"
-    assert result2["errors"] == {"base": "invalid_pin"}
-
-    # 2. Submit valid PIN. Mock it to return success response
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        return_value={
-            "paired": True,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "boot_options": ["linux"],
-            "token": "test_daemon_token",
-        },
-    ) as mock_pair:
-        result3 = await hass.config_entries.flow.async_configure(
-            result2["flow_id"],
-            {
-                "ip_address": "127.0.0.1",
-                "pin": "123456",
-                CONF_ADVANCED_OPTIONS: {
-                    "port": 8081,
-                },
-            },
-        )
-    assert result3["type"] == "create_entry"
-    assert result3["title"] == "GrubStation (127.0.0.1)"
-    assert result3["data"]["update_grub"] is True
-    assert result3["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
-    assert result3["data"]["daemon_token"] == "test_daemon_token"
-    assert mock_pair.call_args.kwargs["pin"] == "123456"
-    assert mock_pair.call_args.kwargs["update_grub"] is True
+        assert result_invalid["type"] == "form"
+        assert result_invalid["errors"] == {"base": "invalid_auth"}
 
 
-async def test_config_flow_pin_connection_error(hass: HomeAssistant) -> None:
-    """Test config flow when daemon config encounters a connection error."""
+async def test_pin_auth_cannot_connect(hass: HomeAssistant) -> None:
+    """Test PIN authentication connection failure."""
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    # Select daemon type
-    result_type = await hass.config_entries.flow.async_configure(
+    result_pin = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            "setup_type": "daemon",
-        },
-    )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemon_config"
-
-    # Submit PIN resulting in connection error
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        side_effect=Exception("Connection lost"),
-    ):
-        result2 = await hass.config_entries.flow.async_configure(
-            result_type["flow_id"],
-            {
-                "ip_address": "127.0.0.1",
-                "pin": "123456",
-                CONF_ADVANCED_OPTIONS: {
-                    "port": 8081,
-                },
-            },
-        )
-    assert result2["type"] == "form"
-    assert result2["step_id"] == "daemon_config"
-    assert result2["errors"] == {"base": "connection"}
-
-
-async def test_config_flow_daemonless(hass: HomeAssistant, hass_client) -> None:
-    # Setup HTTP and webhook components first so hass.http is not None
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    assert result["type"] == "form"
-    assert result["step_id"] == "user"
-
-    # Select daemonless type
-    result_type = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            "setup_type": "daemonless",
-        },
-    )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemonless_config"
-
-    # Fill host info, mac, daemonless=True
-    result2 = await hass.config_entries.flow.async_configure(
-        result_type["flow_id"],
-        {
-            "ip_address": "192.168.1.10",
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "update_grub": False,
-            "turn_off_action": "script.my_custom_shutdown",
-            CONF_ADVANCED_OPTIONS: {},
-        },
-    )
-    assert result2["type"] == "form"
-    assert result2["step_id"] == "daemonless_onboarding"
-    assert '"update_grub": false' in result2["description_placeholders"]["pairing_command"]
-
-    # Submit without running the CLI command/callback first -> should show error
-    result3 = await hass.config_entries.flow.async_configure(
-        result2["flow_id"],
-        {},
-    )
-    assert result3["type"] == "form"
-    assert result3["step_id"] == "daemonless_onboarding"
-    assert result3["errors"] == {"base": "waiting_for_device_callback"}
-
-    # Simulate the remote machine sending the pairing webhook callback
-    flow_id = result["flow_id"]
-    flow = hass.config_entries.flow._progress[flow_id]
-    webhook_id = flow._webhook_id
-
-    client = await hass_client()
-    resp = await client.post(
-        f"/api/webhook/{webhook_id}",
-        json={
-            "action": "update_boot_options",
-            "boot_options": ["Ubuntu", "Windows Boot Manager"],
-        },
-    )
-    assert resp.status == HTTPStatus.OK
-    data = await resp.json()
-    assert data == {"status": "ok"}
-
-    # Now click Submit again -> should succeed and create the entry
-    result4 = await hass.config_entries.flow.async_configure(
-        result2["flow_id"],
-        {},
-    )
-    assert result4["type"] == "create_entry"
-    assert result4["title"] == "GrubStation (192.168.1.10) [Manual]"
-    assert result4["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
-    assert result4["data"]["update_grub"] is False
-    assert result4["data"]["turn_off_action"] == "script.my_custom_shutdown"
-    assert result4["data"]["wol_broadcast"] == "255.255.255.255"
-    assert result4["data"]["wol_port"] == 9
-    assert result4["data"]["boot_options"] == [
-        "Ubuntu",
-        "Windows Boot Manager",
-    ]
-
-
-async def test_config_flow_daemonless_missing_mac(hass: HomeAssistant) -> None:
-    """Test that daemonless flow requires a MAC address."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    assert result["type"] == "form"
-    assert result["step_id"] == "user"
-
-    # Select daemonless type
-    result_type = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            "setup_type": "daemonless",
-        },
-    )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemonless_config"
-
-    # Fill host info, leave mac empty
-    result2 = await hass.config_entries.flow.async_configure(
-        result_type["flow_id"],
-        {
-            "ip_address": "192.168.1.10",
-            "mac": "",
-            "update_grub": False,
-            "turn_off_action": "script.my_custom_shutdown",
-            CONF_ADVANCED_OPTIONS: {},
-        },
-    )
-    assert result2["type"] == "form"
-    assert result2["step_id"] == "daemonless_config"
-    assert result2["errors"] == {"mac": "mac_required_for_daemonless"}
-
-
-async def test_config_flow_daemonless_custom_wol(hass: HomeAssistant, hass_client) -> None:
-    """Test the config flow with custom WoL broadcast and port."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    assert result["type"] == "form"
-    assert result["step_id"] == "user"
-
-    # Select daemonless type
-    result_type = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            "setup_type": "daemonless",
-        },
-    )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemonless_config"
-
-    # Fill host info, mac, daemonless=True, custom WoL settings
-    result2 = await hass.config_entries.flow.async_configure(
-        result_type["flow_id"],
-        {
-            "ip_address": "192.168.1.10",
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "update_grub": False,
-            "turn_off_action": "script.my_custom_shutdown",
-            CONF_ADVANCED_OPTIONS: {
-                "wol_broadcast": "192.168.1.255",
-                "wol_port": 7,
-            },
-        },
-    )
-    assert result2["type"] == "form"
-    assert result2["step_id"] == "daemonless_onboarding"
-
-    # Simulate the remote machine sending the pairing webhook callback
-    flow_id = result["flow_id"]
-    flow = hass.config_entries.flow._progress[flow_id]
-    webhook_id = flow._webhook_id
-
-    client = await hass_client()
-    resp = await client.post(
-        f"/api/webhook/{webhook_id}",
-        json={
-            "action": "update_boot_options",
-            "boot_options": ["Ubuntu"],
-        },
-    )
-    assert resp.status == HTTPStatus.OK
-
-    # Click Submit again -> should succeed and create the entry with custom settings
-    result4 = await hass.config_entries.flow.async_configure(
-        result2["flow_id"],
-        {},
-    )
-    assert result4["type"] == "create_entry"
-    assert result4["data"]["wol_broadcast"] == "192.168.1.255"
-    assert result4["data"]["wol_port"] == 7
-
-
-async def test_config_flow_zeroconf(hass: HomeAssistant) -> None:
-    """Test the config flow via zeroconf."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    discovery_info = ZeroconfServiceInfo(
-        ip_address="127.0.0.1",
-        ip_addresses=["127.0.0.1"],
-        hostname="grubstation.local.",
-        name="GrubStation",
-        port=8081,
-        type="_grubstation._tcp.local.",
-        properties={
-            "paired": "false",
-            "address": "127.0.0.1",
+            "host": "192.168.1.100",
+            "port": 8081,
         },
     )
 
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_ZEROCONF},
-        data=discovery_info,
-    )
-    assert result["type"] == "form"
-    assert result["step_id"] == "zeroconf_confirm"
+    with patch("custom_components.grubstation.config_flow.async_get_clientsession") as mock_get_session:
+        session = AsyncMock()
+        session.post = AsyncMock(side_effect=aiohttp.ClientError("Connection refused"))
+        mock_get_session.return_value = session
 
-    # Verify context title_placeholders is populated for discovery page
-    flow = hass.config_entries.flow._progress[result["flow_id"]]
-    assert flow.context["title_placeholders"] == {"name": "grubstation.local"}
-
-    # Submit pairing step, which generates credentials and calls pairing API
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        return_value={
-            "paired": True,
-            "token": "test_daemon_token",
-            "mac": "aa:bb:cc:dd:ee:ff",
-        },
-    ) as mock_pair:
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
+        result_error = await hass.config_entries.flow.async_configure(
+            result_pin["flow_id"],
             {
                 "pin": "123456",
-                "update_grub": True,
-                CONF_ADVANCED_OPTIONS: {
-                    "ha_url": "https://my-ha.duckdns.org:8123",
-                    "grub_boot_url": "http://10.15.0.5:8123",
-                    "wol_broadcast": "192.168.1.255",
-                    "wol_port": 7,
-                },
             },
         )
-        assert result2["type"] == "create_entry"
-        assert result2["title"] == "grubstation.local"
-        assert result2["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
-        assert result2["data"]["ip_address"] == "127.0.0.1"
-        assert result2["data"]["ha_url"] == "https://my-ha.duckdns.org:8123"
-        assert result2["data"]["grub_boot_url"] == "http://10.15.0.5:8123"
-        assert result2["data"]["update_grub"] is True
-        assert result2["data"]["daemon_token"] == "test_daemon_token"
-        assert result2["data"]["wol_broadcast"] == "192.168.1.255"
-        assert result2["data"]["wol_port"] == 7
-        assert mock_pair.call_args.kwargs["pin"] == "123456"
-        assert mock_pair.call_args.kwargs["update_grub"] is True
-
-
-async def test_config_flow_zeroconf_already_configured(hass: HomeAssistant) -> None:
-    """Test that zeroconf flow aborts if already configured."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-        },
-        unique_id="aa:bb:cc:dd:ee:ff",
-    )
-    entry.add_to_hass(hass)
-
-    discovery_info = ZeroconfServiceInfo(
-        ip_address="127.0.0.1",
-        ip_addresses=["127.0.0.1"],
-        hostname="grubstation.local.",
-        name="GrubStation",
-        port=8081,
-        type="_grubstation._tcp.local.",
-        properties={
-            "paired": "false",
-            "address": "127.0.0.1",
-        },
-    )
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_ZEROCONF},
-        data=discovery_info,
-    )
-    assert result["type"] == "abort"
-    assert result["reason"] == "already_configured"
-
-
-async def test_config_flow_zeroconf_already_paired(hass: HomeAssistant) -> None:
-    """Test that zeroconf flow displays already_paired error on conflict."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    discovery_info = ZeroconfServiceInfo(
-        ip_address="127.0.0.1",
-        ip_addresses=["127.0.0.1"],
-        hostname="grubstation.local.",
-        name="GrubStation",
-        port=8081,
-        type="_grubstation._tcp.local.",
-        properties={
-            "paired": "false",
-            "address": "127.0.0.1",
-        },
-    )
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_ZEROCONF},
-        data=discovery_info,
-    )
-    assert result["type"] == "form"
-    assert result["step_id"] == "zeroconf_confirm"
-
-    # Submit pairing step, mock async_pair to raise GrubStationApiConflictError
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        side_effect=GrubStationApiConflictError("Conflict: already paired"),
-    ):
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {
-                "pin": "123456",
-                "update_grub": True,
-                CONF_ADVANCED_OPTIONS: {},
-            },
-        )
-        assert result2["type"] == "form"
-        assert result2["step_id"] == "zeroconf_confirm"
-        assert result2["errors"] == {"base": "already_paired"}
-
-
-async def test_options_flow_update_settings(hass: HomeAssistant) -> None:
-    """Test that options flow updates config entry data."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "webhook_id": "test_webhook_id",
-            "api_key": "test_api_key",
-            "ha_url": "https://ha.local:8123",
-            "grub_boot_url": "http://10.0.0.1:8123",
-            "update_grub": True,
-        },
-        unique_id="aa:bb:cc:dd:ee:ff",
-    )
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert result["type"] == "form"
-    assert result["step_id"] == "init"
-
-    with patch(
-        "custom_components.grubstation.config_flow.GrubStationApiClient.async_update_config",
-    ) as mock_update:
-        result2 = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            {
-                "ha_url": "https://new-ha.local:8123",
-                "grub_boot_url": "http://10.0.0.2:8123",
-                "update_grub": False,
-            },
-        )
-    assert result2["type"] == "create_entry"
-    assert entry.data["ha_url"] == "https://new-ha.local:8123"
-    assert entry.data["grub_boot_url"] == "http://10.0.0.2:8123"
-    assert entry.data["update_grub"] is False
-    mock_update.assert_awaited_once()
-
-
-async def test_options_flow_daemon_sync_failure(hass: HomeAssistant) -> None:
-    """Test that a daemon comms error during options save does not block the save."""
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "webhook_id": "test_webhook_id",
-            "api_key": "test_api_key",
-            "ha_url": "https://ha.local:8123",
-            "grub_boot_url": "http://10.0.0.1:8123",
-            "update_grub": True,
-            "daemon_token": "test_token",
-        },
-        unique_id="aa:bb:cc:dd:ee:ff",
-    )
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-
-    with patch(
-        "custom_components.grubstation.config_flow.GrubStationApiClient.async_update_config",
-        side_effect=GrubStationApiClientCommunicationError("connection refused"),
-    ):
-        result2 = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            {
-                "ha_url": "https://new-ha.local:8123",
-                "grub_boot_url": "http://10.0.0.2:8123",
-                "update_grub": False,
-            },
-        )
-
-    # Save should still succeed even though the daemon was unreachable
-    assert result2["type"] == "create_entry"
-    assert entry.data["ha_url"] == "https://new-ha.local:8123"
-
-
-async def test_reauth_flow_success(hass: HomeAssistant) -> None:
-    """Test that the reauth flow updates the daemon_token on success."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "webhook_id": "original_webhook_id",
-            "api_key": "original_api_key",
-            "ha_url": "http://127.0.0.1:8123",
-            "grub_boot_url": "http://127.0.0.1:8123",
-            "run_update_grub": True,
-            "hostname": "grubstation.local",
-            "daemon_token": "old_daemon_token",
-        },
-        unique_id="aa:bb:cc:dd:ee:ff",
-    )
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
-        data=entry.data,
-    )
-    assert result["type"] == "form"
-    assert result["step_id"] == "reauth_confirm"
-
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        return_value={"paired": True, "token": "new_daemon_token"},
-    ):
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {"pin": "654321"},
-        )
-
-    assert result2["type"] == "abort"
-    assert result2["reason"] == "reauth_successful"
-    assert entry.data["daemon_token"] == "new_daemon_token"
-
-
-async def test_reauth_flow_invalid_pin(hass: HomeAssistant) -> None:
-    """Test that the reauth flow shows an error on an invalid PIN."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "webhook_id": "original_webhook_id",
-            "api_key": "original_api_key",
-            "ha_url": "http://127.0.0.1:8123",
-            "grub_boot_url": "http://127.0.0.1:8123",
-            "run_update_grub": True,
-            "hostname": "grubstation.local",
-            "daemon_token": "old_daemon_token",
-        },
-        unique_id="aa:bb:cc:dd:ee:ff",
-    )
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
-        data=entry.data,
-    )
-    assert result["type"] == "form"
-    assert result["step_id"] == "reauth_confirm"
-
-    with patch(
-        "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-        side_effect=GrubStationApiInvalidPinError("wrong pin"),
-    ):
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {"pin": "000000"},
-        )
-
-    assert result2["type"] == "form"
-    assert result2["errors"] == {"base": "invalid_pin"}
-    # Token should be unchanged
-    assert entry.data["daemon_token"] == "old_daemon_token"
-
-
-async def test_config_flow_multi_os_merge(hass: HomeAssistant) -> None:
-    """Test that configuring a second OS daemon on the same MAC address merges them."""
-    assert await async_setup_component(hass, "http", {})
-    assert await async_setup_component(hass, "webhook", {})
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "ip_address": "127.0.0.1",
-            "port": 8081,
-            "mac": "aa:bb:cc:dd:ee:ff",
-            "webhook_id": "original_webhook_id",
-            "api_key": "original_api_key",
-            "ha_url": "http://127.0.0.1:8123",
-            "grub_boot_url": "http://127.0.0.1:8123",
-            "update_grub": True,
-            "hostname": "grubstation-linux",
-            "daemon_token": "linux_token",
-            "daemons": {
-                "linux": {
-                    "ip_address": "127.0.0.1",
-                    "port": 8081,
-                    "daemon_token": "linux_token",
-                    "boot_options": ["linux", "windows"],
-                    "hostname": "grubstation-linux",
-                    "is_daemonless": False,
-                }
-            },
-        },
-        unique_id="aa:bb:cc:dd:ee:ff",
-    )
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    assert result["type"] == "form"
-    assert result["step_id"] == "user"
-
-    result_type = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            "setup_type": "daemon",
-        },
-    )
-    assert result_type["type"] == "form"
-    assert result_type["step_id"] == "daemon_config"
-
-    with (
-        patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_pair",
-            return_value={
-                "paired": True,
-                "mac": "aa:bb:cc:dd:ee:ff",
-                "token": "windows_token",
-                "boot_options": ["linux", "windows"],
-            },
-        ),
-        patch(
-            "custom_components.grubstation.api.GrubStationApiClient.async_get_status",
-            return_value={
-                "os": "Windows",
-                "service_manager": "sc",
-                "status": "running",
-                "version": "1.0.0",
-            },
-        ),
-    ):
-        result2 = await hass.config_entries.flow.async_configure(
-            result_type["flow_id"],
-            {
-                "ip_address": "127.0.0.2",
-                "pin": "123456",
-                "update_grub": True,
-                CONF_ADVANCED_OPTIONS: {
-                    "port": 8081,
-                },
-            },
-        )
-
-    assert result2["type"] == "abort"
-    assert result2["reason"] == "already_configured"
-
-    # Check that both linux and windows are now registered in the daemons dictionary
-    daemons = entry.data.get("daemons")
-    assert daemons is not None
-    assert "linux" in daemons
-    assert "windows" in daemons
-    assert daemons["windows"]["ip_address"] == "127.0.0.2"
-    assert daemons["windows"]["daemon_token"] == "windows_token"
+        assert result_error["type"] == "form"
+        assert result_error["errors"] == {"base": "cannot_connect"}

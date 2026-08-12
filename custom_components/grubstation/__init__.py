@@ -171,9 +171,15 @@ async def async_remove_entry(
     entry: GrubStationConfigEntry,
 ) -> None:
     """Handle removal of an entry."""
+    ip_address = entry.data.get(CONF_IP_ADDRESS) or entry.data.get("host")
+    port = entry.data.get(CONF_PORT) or 8081
+    if not ip_address:
+        LOGGER.warning("Could not find IP address for GrubStation entry, skipping unpair request")
+        return
+
     client = GrubStationApiClient(
-        ip_address=entry.data[CONF_IP_ADDRESS],
-        port=entry.data[CONF_PORT],
+        ip_address=ip_address,
+        port=port,
         session=async_get_clientsession(hass),
     )
     try:

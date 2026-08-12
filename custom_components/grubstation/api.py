@@ -83,7 +83,6 @@ class GrubStationApiClient:
         webhook_id: str,
         api_key: str,
         ha_url: str,
-        grub_boot_url: str,
         update_grub: bool,
     ) -> Any:
         """Pair the integration with the GrubStation device."""
@@ -92,7 +91,6 @@ class GrubStationApiClient:
             "webhook_id": webhook_id,
             "api_key": api_key,
             "ha_url": ha_url,
-            "grub_boot_url": grub_boot_url,
             "update_grub": update_grub,
         }
         headers = {}
@@ -119,7 +117,6 @@ class GrubStationApiClient:
         daemon_token: str,
         *,
         ha_url: str,
-        grub_boot_url: str,
         update_grub: bool,
     ) -> Any:
         """Push updated configuration settings to the GrubStation device."""
@@ -129,7 +126,6 @@ class GrubStationApiClient:
         headers = {"Authorization": f"Bearer {daemon_token}"}
         payload = {
             "ha_url": ha_url,
-            "grub_boot_url": grub_boot_url,
             "update_grub": update_grub,
         }
         return await self._api_wrapper(

@@ -39,7 +39,6 @@ async def test_api_pair() -> None:
         webhook_id="test_webhook",
         api_key="test_key",
         ha_url="http://127.0.0.1:8123",
-        grub_boot_url="http://127.0.0.1:8123",
         update_grub=True,
     )
     assert result == {"paired": True}
@@ -144,7 +143,6 @@ async def test_api_pair_pin_required() -> None:
             webhook_id="test_webhook",
             api_key="test_key",
             ha_url="http://127.0.0.1:8123",
-            grub_boot_url="http://127.0.0.1:8123",
             update_grub=True,
         )
 
@@ -177,7 +175,6 @@ async def test_api_pair_invalid_pin() -> None:
             webhook_id="test_webhook",
             api_key="test_key",
             ha_url="http://127.0.0.1:8123",
-            grub_boot_url="http://127.0.0.1:8123",
             update_grub=True,
         )
 
@@ -219,7 +216,6 @@ async def test_api_pair_with_pin_success() -> None:
         webhook_id="test_webhook",
         api_key="test_key",
         ha_url="http://127.0.0.1:8123",
-        grub_boot_url="http://127.0.0.1:8123",
         update_grub=True,
     )
     assert result == {

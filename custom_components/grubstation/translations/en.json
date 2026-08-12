@@ -4,170 +4,36 @@
         "step": {
             "user": {
                 "title": "Add GrubStation Host",
-                "description": "Select the configuration type for your new GrubStation host.",
+                "description": "Enter the host and port of the remote machine running the GrubStation daemon.",
                 "data": {
-                    "setup_type": "Configuration Type"
+                    "host": "Host",
+                    "port": "Port"
                 }
             },
-            "daemon_config": {
-                "title": "Configure Daemon Host",
-                "description": "Set up a new connection to a remote machine running the GrubStation daemon. If you need help, please refer to the documentation: {documentation_url}",
-                "data": {
-                    "ip_address": "IP Address",
-                    "pin": "PIN Code",
-                    "update_grub": "Apply GRUB configuration changes and run `update-grub` automatically"
-                },
-                "data_description": {
-                    "ip_address": "The IPv4 or IPv6 address of the remote machine.",
-                    "pin": "This was generated during `grubstation init` and can be found in `/etc/grubstation/state.json` on the remote machine.",
-                    "update_grub": "If you choose not to run `update-grub` now, you can manually run it later."
-                },
-                "sections": {
-                    "advanced_options": {
-                        "name": "Advanced Options",
-                        "description": "Optional advanced settings for port and webhook URLs.",
-                        "data": {
-                            "port": "Port",
-                            "ha_url": "Home Assistant URL (HTTPS allowed)",
-                            "grub_boot_url": "GRUB Boot URL (Must be HTTP)",
-                            "wol_broadcast": "Wake-on-LAN Broadcast Address",
-                            "wol_port": "Wake-on-LAN Broadcast Port"
-                        },
-                        "data_description": {
-                            "port": "The port that the GrubStation Daemon is listening on (default: 8081).",
-                            "ha_url": "The URL GrubStation uses to communicate with Home Assistant's webhooks. This can be an HTTPS address.",
-                            "grub_boot_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
-                            "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`.",
-                            "wol_port": "The port used when sending the Wake-on-LAN magic packet. Defaults to 9."
-                        }
-                    }
-                }
-            },
-            "daemonless_config": {
-                "title": "Configure Daemonless Host",
-                "description": "Set up a daemonless GrubStation host. This machine will retrieve boot options, and manage power using Wake-on-LAN and a custom turn-off action. If you need help, please refer to the documentation: {documentation_url}",
-                "data": {
-                    "ip_address": "IP Address",
-                    "mac": "MAC Address",
-                    "update_grub": "Apply GRUB configuration changes and run `update-grub` automatically",
-                    "turn_off_action": "Custom Turn Off Action"
-                },
-                "data_description": {
-                    "ip_address": "The IPv4 or IPv6 address of the remote machine.",
-                    "mac": "The physical MAC address of the remote machine's network interface (required for Wake-on-LAN).",
-                    "update_grub": "If you choose not to run `update-grub` now, you can manually run it later.",
-                    "turn_off_action": "Custom action (like a script or service call) to run when turning off this host."
-                },
-                "sections": {
-                    "advanced_options": {
-                        "name": "Advanced Options",
-                        "description": "Optional advanced settings for webhook and GRUB boot URLs.",
-                        "data": {
-                            "ha_url": "Home Assistant URL (HTTPS allowed)",
-                            "grub_boot_url": "GRUB Boot URL (Must be HTTP)",
-                            "wol_broadcast": "Wake-on-LAN Broadcast Address",
-                            "wol_port": "Wake-on-LAN Broadcast Port"
-                        },
-                        "data_description": {
-                            "ha_url": "The URL GrubStation uses to communicate with Home Assistant's webhooks. This can be an HTTPS address.",
-                            "grub_boot_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
-                            "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`.",
-                            "wol_port": "The port used when sending the Wake-on-LAN magic packet. Defaults to 9."
-                        }
-                    }
-                }
-            },
-            "daemonless_onboarding": {
-                "title": "Daemonless Onboarding",
-                "description": "Run the following command on your remote machine to pair it with Home Assistant. Once the command completes successfully, click Submit.\n\nCommand:\n```bash\n{pairing_command}\n```"
-            },
-            "reauth_confirm": {
-                "title": "Re-authenticate GrubStation",
-                "description": "The GrubStation daemon on **{hostname}** is no longer paired with Home Assistant. Enter its pairing PIN to re-establish the connection.",
-                "data": {
-                    "pin": "Pairing PIN"
-                }
-            },
-            "zeroconf_confirm": {
-                "title": "Pair GrubStation",
-                "description": "Configuring Host: {host}:{port} ({name})\n\nIf you need help with the configuration have a look here: {documentation_url}",
+            "pin": {
+                "title": "Authenticate with GrubStation",
+                "description": "Enter the PIN code of your GrubStation daemon and a Home Assistant Long-Lived Access Token so the daemon can report back to HA.",
                 "data": {
                     "pin": "PIN Code",
-                    "update_grub": "Apply GRUB configuration changes and run `update-grub` automatically"
-                },
-                "data_description": {
-                    "pin": "This was generated during `grubstation init` and can be regenerated by running `grubstation reset-pin`.",
-                    "update_grub": "If you choose not to run `update-grub` now, you can manually run it later."
-                },
-                "sections": {
-                    "advanced_options": {
-                        "name": "Advanced Options",
-                        "description": "Optional advanced settings for custom URLs and automatic grub updates.",
-                        "data": {
-                            "daemon_url": "Home Assistant Daemon URL (HTTPS allowed)",
-                            "grub_url": "GRUB Boot URL (Must be HTTP)",
-                            "wol_broadcast": "Wake-on-LAN Broadcast Address",
-                            "wol_port": "Wake-on-LAN Broadcast Port"
-                        },
-                        "data_description": {
-                            "daemon_url": "The URL GrubStation uses to communicate with Home Assistant. This can be an HTTPS address.",
-                            "grub_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
-                            "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`.",
-                            "wol_port": "The port used when sending the Wake-on-LAN magic packet. Defaults to 9."
-                        }
-                    }
+                    "long_lived_token": "Long-Lived Access Token"
+                }
+            },
+            "interface": {
+                "title": "Configure Network Interface",
+                "description": "Select the physical network interface that GrubStation should use for boot management communications.",
+                "data": {
+                    "interface": "Network Interface"
                 }
             }
         },
         "error": {
-            "auth": "Authentication failed.",
-            "connection": "Unable to connect to the GrubStation daemon.",
+            "invalid_auth": "Authentication failed. Invalid PIN code.",
+            "cannot_connect": "Unable to connect to the GrubStation daemon.",
             "unknown": "Unknown error occurred.",
-            "mac_required_for_daemonless": "MAC address is required when daemonless mode is enabled.",
-            "turn_off_action_required_for_daemonless": "A custom turn-off action is required when daemonless mode is enabled.",
-            "invalid_pin": "The PIN code entered is invalid.",
-            "waiting_for_device_callback": "Waiting for pairing callback from the remote device. Please make sure the command has run successfully.",
-            "already_paired": "The host is already paired with Home Assistant. Unpair it from the other instance of Home Assistant or delete its `/etc/grubstation/state.json` file.",
-            "invalid_ip": "Please enter a valid IP address."
+            "no_physical_interfaces": "No physical network interfaces were found on the remote machine."
         },
         "abort": {
-            "already_configured": "This entry is already configured.",
-            "reauth_successful": "Re-authentication was successful."
-        }
-    },
-    "options": {
-        "step": {
-            "init": {
-                "title": "GrubStation Settings",
-                "description": "Configure your GrubStation integration settings.",
-                "data": {
-                    "ha_url": "Home Assistant URL (HTTPS allowed)",
-                    "grub_boot_url": "GRUB Boot URL (Must be HTTP)",
-                    "update_grub": "Apply GRUB configuration changes and run `update-grub` automatically",
-                    "turn_off_action": "Optional Turn Off Action (Grubstation Daemon is the default)",
-                    "wol_broadcast": "Wake-on-LAN Broadcast Address",
-                    "wol_port": "Wake-on-LAN Broadcast Port"
-                },
-                "data_description": {
-                    "ha_url": "The URL GrubStation uses to communicate with Home Assistant. This **can** be an HTTPS address.",
-                    "grub_boot_url": "The URL used by the GRUB bootloader to retrieve boot options. This **MUST** be HTTP because GRUB doesn't handle HTTPS certificates well.",
-                    "update_grub": "If you choose not to run `update-grub` now, you can manually run it later.",
-                    "turn_off_action": "Optional custom action (like a script or service call) to run when turning off this host instead of the default daemon shutdown command. Note: A custom action is required for daemonless hosts.",
-                    "wol_broadcast": "The broadcast address used when sending the Wake-on-LAN magic packet. Defaults to `255.255.255.255`. Change this if your machine is on a different subnet (e.g. `192.168.1.255`).",
-                    "wol_port": "The port used when sending the Wake-on-LAN magic packet. Defaults to 9."
-                }
-            }
-        },
-        "error": {
-            "turn_off_action_required_for_daemonless": "A custom turn-off action is required when daemonless mode is enabled."
-        }
-    },
-    "selector": {
-        "setup_type_options": {
-            "options": {
-                "daemon": "Standard Host (with background Daemon)",
-                "daemonless": "Daemonless Host (reports/retrieves boot options only)"
-            }
+            "already_configured": "This host or network interface is already configured."
         }
     },
     "entity": {
